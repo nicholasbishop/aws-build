@@ -1,0 +1,8 @@
+[package]
+name = "lambda-build"
+version = "0.1.0"
+authors = ["Nicholas Bishop <nicholasbishop@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+argh = "0.1"
