@@ -43,6 +43,16 @@ fn git_cmd_in(repo_path: &Path) -> Command {
     cmd
 }
 
+/// Create directory if it doesn't already exist.
+///
+/// Aborts the program if the directory can't be created.
+fn ensure_dir_exists(path: &Path) {
+    let _ = fs::create_dir(path);
+    if !path.is_dir() {
+        abort(&format!("failed to create directory {}", path.display()));
+    }
+}
+
 /// Build the project in a container for deployment to Lambda.
 #[derive(FromArgs)]
 struct Opt {
@@ -78,7 +88,7 @@ fn main() {
         home.join(".cache")
     };
     let repo_path = cache.join("lambda-build/repo");
-    let _ = fs::create_dir_all(&repo_path);
+    ensure_dir_exists(&repo_path);
 
     if !repo_path.join(".git").exists() {
         // Clone the repo if it doesn't exist
@@ -139,21 +149,21 @@ fn main() {
     // subdirectory needs to already exist. Usually the "target"
     // directory will already exist on the host, but won't if "cargo
     // test" or similar hasn't been run yet.
-    let _ = fs::create_dir(opt.project.join("target"));
+    ensure_dir_exists(&opt.project.join("target"));
 
     // Create the output directory if it doesn't already exist. This
     // ensures it has the right permissions instead of being owned by
     // root.
     let output_dir = opt.project.join("lambda-target");
-    let _ = fs::create_dir(&output_dir);
+    ensure_dir_exists(&output_dir);
 
     // Create two cache directories to speed up rebuilds. These are
     // host mounts rather than volumes so that the permissions aren't
     // set to root only.
     let registry_dir = output_dir.join("cargo-registry");
-    let _ = fs::create_dir(&registry_dir);
+    ensure_dir_exists(&registry_dir);
     let git_dir = output_dir.join("cargo-git");
-    let _ = fs::create_dir(&git_dir);
+    ensure_dir_exists(&git_dir);
 
     // Run the container
     run_cmd(
