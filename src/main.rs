@@ -76,6 +76,14 @@ struct Opt {
 fn main() {
     let opt: Opt = argh::from_env();
     let repo_url = &opt.repo;
+    let project_path = match opt.project.canonicalize() {
+        Ok(path) => path,
+        Err(err) => abort(&format!(
+            "failed to canonicalize {}: {}",
+            opt.project.display(),
+            err
+        )),
+    };
 
     let home: PathBuf = if let Some(home) = env::var_os("HOME") {
         Path::new(&home).into()
@@ -149,12 +157,12 @@ fn main() {
     // subdirectory needs to already exist. Usually the "target"
     // directory will already exist on the host, but won't if "cargo
     // test" or similar hasn't been run yet.
-    ensure_dir_exists(&opt.project.join("target"));
+    ensure_dir_exists(&project_path.join("target"));
 
     // Create the output directory if it doesn't already exist. This
     // ensures it has the right permissions instead of being owned by
     // root.
-    let output_dir = opt.project.join("lambda-target");
+    let output_dir = project_path.join("lambda-target");
     ensure_dir_exists(&output_dir);
 
     // Create two cache directories to speed up rebuilds. These are
@@ -177,7 +185,7 @@ fn main() {
             ))
             // Mount the project directory
             .arg("-v")
-            .arg(volume_read_only(&opt.project, Path::new("/code")))
+            .arg(volume_read_only(&project_path, Path::new("/code")))
             // Mount two Docker volumes to make rebuilds faster
             .arg("-v")
             .arg(volume(&registry_dir, Path::new("/cargo/registry")))
