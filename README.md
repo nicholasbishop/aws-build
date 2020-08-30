@@ -7,7 +7,7 @@ This project is a thin wrapper around the excellent
 provides "a faithful reproduction of the actual AWS [...] Lambda
 runtime environment" with the stable Rust toolchain installed.
 
-The lambda-build executable expands on lambda-rust in two ways:
+The lambda-build program expands on lambda-rust in two ways:
 1. It downloads the lambda-rust repo and builds a specific branch,
    tag, or commit instead of using a build from Docker hub. This is
    useful because the lambda-rust repo is sometimes updated without a
@@ -15,6 +15,9 @@ The lambda-build executable expands on lambda-rust in two ways:
 2. It builds and runs the lambda-rust container with all the necessary
    options. There are a number of volumes that need to get mounted in
    the right place for caching to work.
+   
+This program only handles building the project locally. It does not
+interact with any AWS services.
    
 ## Installation
 
