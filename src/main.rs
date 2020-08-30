@@ -133,7 +133,17 @@ fn main() {
         s
     };
 
-    // Create the output directory if it doesn't already exist
+    // Ensure that the target directory exists. The output directory
+    // ("lambda-target") is mounted to /code/target in the container,
+    // but we mount /code from the host read-only, so the target
+    // subdirectory needs to already exist. Usually the "target"
+    // directory will already exist on the host, but won't if "cargo
+    // test" or similar hasn't been run yet.
+    let _ = fs::create_dir(opt.project.join("target"));
+
+    // Create the output directory if it doesn't already exist. This
+    // ensures it has the right permissions instead of being owned by
+    // root.
     let output_dir = opt.project.join("lambda-target");
     let _ = fs::create_dir(&output_dir);
 
