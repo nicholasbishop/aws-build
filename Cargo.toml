@@ -6,3 +6,4 @@ edition = "2018"
 
 [dependencies]
 argh = "0.1"
+users = "0.10"
