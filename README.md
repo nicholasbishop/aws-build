@@ -47,4 +47,6 @@ Options:
 
 ## Related projects
 
-[cargo-aws-lambda](https://github.com/vvilhonen/cargo-aws-lambda)
+[cargo-aws-lambda](https://github.com/vvilhonen/cargo-aws-lambda):
+"dependency free cargo subcommand for cross-compiling, packaging and
+deploying code quickly to AWS Lambda"
