@@ -3,6 +3,11 @@ name = "lambda-build"
 version = "0.1.0"
 authors = ["Nicholas Bishop <nicholasbishop@gmail.com>"]
 edition = "2018"
+repository = "https://github.com/nicholasbishop/lambda-build"
+license = "Apache-2.0"
+description = "Build Rust crates for deployment to AWS Lambda"
+readme = "README.md"
+keywords = ["aws", "lambda", "docker", "container", "build"]
 
 [dependencies]
 argh = "0.1"
