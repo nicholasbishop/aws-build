@@ -29,6 +29,9 @@ the directory of the project you want to build. You can also pass an
 explicit directory to build. By default the master branch of
 `lambda-rust` is used; a different one can be set with `--rev`.
 
+The lambda package will be output to
+`lambda-target/lambda/release/lambda-build.zip`.
+
 ```
 lambda-build [<project>] [--repo <repo>] [--rev <rev>] [--cmd <cmd>]
 
