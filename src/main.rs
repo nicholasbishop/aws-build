@@ -1,39 +1,32 @@
+use anyhow::{anyhow, Context, Error};
 use argh::FromArgs;
+use fehler::{throw, throws};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::process::{exit, Command, ExitStatus};
+use std::process::{Command, ExitStatus};
 use std::{env, fs};
 
 static DEFAULT_REPO: &str = "https://github.com/softprops/lambda-rust";
 static DEFAULT_REV: &str = "master";
 static DEFAULT_CONTAINER_CMD: &str = "docker";
 
-fn abort(s: &str) -> ! {
-    eprintln!("{}", s);
-    exit(1);
-}
-
 fn cmd_str(cmd: &Command) -> String {
     format!("{:?}", cmd).replace('"', "")
 }
 
+#[throws]
 fn run_cmd_no_check(cmd: &mut Command) -> ExitStatus {
     let cmd_str = cmd_str(cmd);
     println!("{}", cmd_str);
-    let status = match cmd.status() {
-        Ok(status) => status,
-        Err(err) => {
-            abort(&format!("failed to run {}: {}", cmd_str, err));
-        }
-    };
-    status
+    cmd.status().context(format!("failed to run {}", cmd_str))?
 }
 
+#[throws]
 fn run_cmd(cmd: &mut Command) {
     let cmd_str = cmd_str(cmd);
-    let status = run_cmd_no_check(cmd);
+    let status = run_cmd_no_check(cmd)?;
     if !status.success() {
-        abort(&format!("command {} failed: {}", cmd_str, status));
+        throw!(anyhow!("command {} failed: {}", cmd_str, status));
     }
 }
 
@@ -44,12 +37,12 @@ fn git_cmd_in(repo_path: &Path) -> Command {
 }
 
 /// Create directory if it doesn't already exist.
-///
-/// Aborts the program if the directory can't be created.
+#[throws]
 fn ensure_dir_exists(path: &Path) {
+    // Ignore the return value since the directory might already exist
     let _ = fs::create_dir(path);
     if !path.is_dir() {
-        abort(&format!("failed to create directory {}", path.display()));
+        throw!(anyhow!("failed to create directory {}", path.display()));
     }
 }
 
@@ -73,30 +66,28 @@ struct Opt {
     project: PathBuf,
 }
 
+#[throws]
 fn main() {
     let opt: Opt = argh::from_env();
     let repo_url = &opt.repo;
-    let project_path = match opt.project.canonicalize() {
-        Ok(path) => path,
-        Err(err) => abort(&format!(
-            "failed to canonicalize {}: {}",
+    let project_path =
+        opt.project.canonicalize().context(format!(
+            "failed to canonicalize {}",
             opt.project.display(),
-            err
-        )),
-    };
+        ))?;
 
-    let home: PathBuf = if let Some(home) = env::var_os("HOME") {
-        Path::new(&home).into()
-    } else {
-        abort("HOME is not set");
-    };
+    let home: PathBuf = Path::new(
+        &env::var_os("HOME")
+            .ok_or_else(|| anyhow!("HOME env var is not set"))?,
+    )
+    .into();
     let cache: PathBuf = if let Some(cache) = env::var_os("XDG_CACHE_HOME") {
         Path::new(&cache).into()
     } else {
         home.join(".cache")
     };
     let repo_path = cache.join("lambda-build/repo");
-    ensure_dir_exists(&repo_path);
+    ensure_dir_exists(&repo_path)?;
 
     if !repo_path.join(".git").exists() {
         // Clone the repo if it doesn't exist
@@ -104,16 +95,16 @@ fn main() {
             Command::new("git")
                 .args(&["clone", repo_url])
                 .arg(&repo_path),
-        );
+        )?;
     } else {
         // Ensure the remote is set correctly
         run_cmd(
             git_cmd_in(&repo_path)
                 .args(&["remote", "set-url", "origin"])
                 .arg(repo_url),
-        );
+        )?;
         // Fetch updates
-        run_cmd(git_cmd_in(&repo_path).arg("fetch"));
+        run_cmd(git_cmd_in(&repo_path).arg("fetch"))?;
     };
 
     // Check out the specified revision. First we try checking out
@@ -125,9 +116,9 @@ fn main() {
     let status = run_cmd_no_check(
         git_cmd_in(&repo_path)
             .args(&["checkout", &format!("origin/{}", opt.rev)]),
-    );
+    )?;
     if !status.success() {
-        run_cmd(git_cmd_in(&repo_path).args(&["checkout", &opt.rev]));
+        run_cmd(git_cmd_in(&repo_path).args(&["checkout", &opt.rev]))?;
     }
 
     // Build the container
@@ -136,7 +127,7 @@ fn main() {
         Command::new(&opt.cmd)
             .current_dir(&repo_path)
             .args(&["build", "--tag", image_tag, "."]),
-    );
+    )?;
 
     let volume = |src: &Path, dst: &Path| {
         let mut s = OsString::new();
@@ -157,21 +148,21 @@ fn main() {
     // subdirectory needs to already exist. Usually the "target"
     // directory will already exist on the host, but won't if "cargo
     // test" or similar hasn't been run yet.
-    ensure_dir_exists(&project_path.join("target"));
+    ensure_dir_exists(&project_path.join("target"))?;
 
     // Create the output directory if it doesn't already exist. This
     // ensures it has the right permissions instead of being owned by
     // root.
     let output_dir = project_path.join("lambda-target");
-    ensure_dir_exists(&output_dir);
+    ensure_dir_exists(&output_dir)?;
 
     // Create two cache directories to speed up rebuilds. These are
     // host mounts rather than volumes so that the permissions aren't
     // set to root only.
     let registry_dir = output_dir.join("cargo-registry");
-    ensure_dir_exists(&registry_dir);
+    ensure_dir_exists(&registry_dir)?;
     let git_dir = output_dir.join("cargo-git");
-    ensure_dir_exists(&git_dir);
+    ensure_dir_exists(&git_dir)?;
 
     // Run the container
     run_cmd(
@@ -195,5 +186,5 @@ fn main() {
             .arg("-v")
             .arg(volume(&output_dir, Path::new("/code/target")))
             .arg(image_tag),
-    );
+    )?;
 }

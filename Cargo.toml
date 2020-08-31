@@ -10,5 +10,7 @@ readme = "README.md"
 keywords = ["aws", "lambda", "docker", "container", "build"]
 
 [dependencies]
+anyhow = "1.0"
 argh = "0.1"
+fehler = "1.0"
 users = "0.10"
