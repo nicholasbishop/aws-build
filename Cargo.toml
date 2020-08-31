@@ -12,5 +12,9 @@ keywords = ["aws", "lambda", "docker", "container", "build"]
 [dependencies]
 anyhow = "1.0"
 argh = "0.1"
+cargo_metadata = "0.11"
+chrono = "0.4"
 fehler = "1.0"
+sha2 = "0.9"
 users = "0.10"
+zip = "0.5"

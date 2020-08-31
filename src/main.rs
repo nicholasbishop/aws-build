@@ -1,10 +1,15 @@
 use anyhow::{anyhow, Context, Error};
 use argh::FromArgs;
+use cargo_metadata::MetadataCommand;
+use chrono::{Datelike, Utc};
 use fehler::{throw, throws};
+use sha2::Digest;
 use std::ffi::OsString;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 use std::{env, fs};
+use zip::ZipWriter;
 
 static DEFAULT_REPO: &str = "https://github.com/softprops/lambda-rust";
 static DEFAULT_REV: &str = "master";
@@ -52,6 +57,21 @@ fn read_path_var(name: &str) -> PathBuf {
         .ok_or_else(|| anyhow!("{} env var is not set", name))?;
 
     Path::new(&value).into()
+}
+
+/// Get the names of all the binaries targets in a project.
+#[throws]
+fn get_package_binaries(path: &Path) -> Vec<String> {
+    let metadata = MetadataCommand::new().current_dir(path).no_deps().exec()?;
+    let mut names = Vec::new();
+    for package in metadata.packages {
+        for target in package.targets {
+            if target.kind.contains(&"bin".to_string()) {
+                names.push(target.name);
+            }
+        }
+    }
+    names
 }
 
 /// Build the project in a container for deployment to Lambda.
@@ -188,4 +208,49 @@ fn main() {
             .arg(volume(&output_dir, Path::new("/code/target")))
             .arg(image_tag),
     )?;
+
+    // Get the binary target names.
+    let binaries = get_package_binaries(&project_path)?;
+
+    // Zip each binary and give the zip a unique name. The lambda-rust
+    // build already zips the binaries, but the name is just the
+    // binary name. It's helpful to have a more specific name so that
+    // multiple versions can be uploaded to S3 without overwriting
+    // each other. The new name is
+    // "<exec-name>-<yyyymmdd>-<exec-hash>.zip".
+    let mut zip_names = Vec::new();
+    for name in binaries {
+        let src = output_dir.join("lambda/release").join(&name);
+        let contents = fs::read(&src)
+            .context(format!("failed to read {}", src.display()))?;
+        let now = Utc::now();
+        let hash = sha2::Sha256::digest(&contents);
+        let dst_name = format!(
+            "{}-{}{}{}-{:.16x}.zip",
+            name,
+            now.year(),
+            now.month(),
+            now.day(),
+            // The hash is truncated to 16 characters so that the file
+            // name isn't unnecessarily long
+            hash
+        );
+        let dst = output_dir.join(&dst_name);
+        zip_names.push(dst_name);
+
+        // Create the zip file containing just a bootstrap file (the
+        // executable)
+        let file = fs::File::create(&dst)
+            .context(format!("failed to create {}", dst.display()))?;
+        let mut zip = ZipWriter::new(file);
+        let options = zip::write::FileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+        zip.start_file("bootstrap", options)?;
+        zip.write_all(&contents)?;
+
+        zip.finish()?;
+    }
+
+    let latest_path = output_dir.join("latest");
+    fs::write(latest_path, zip_names.join("\n") + "\n")?;
 }
