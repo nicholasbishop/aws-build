@@ -75,7 +75,7 @@ fn get_package_binaries(path: &Path) -> Vec<String> {
 }
 
 /// Build the project in a container for deployment to Lambda.
-#[derive(FromArgs)]
+#[derive(Debug, FromArgs)]
 struct Opt {
     /// lambda-rust repo (default: https://github.com/softprops/lambda-rust)
     #[argh(option, default = "DEFAULT_REPO.into()")]
@@ -255,4 +255,21 @@ fn main() {
     let latest_path = output_dir.join("latest");
     println!("writing {}", latest_path.display());
     fs::write(latest_path, zip_names.join("\n") + "\n")?;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Test that the readme's usage section is up to date
+    #[test]
+    fn test_readme_usage() {
+        let readme = include_str!("../README.md");
+        let mut usage = Opt::from_args(&["lambda-build"], &["--help"])
+            .unwrap_err()
+            .output;
+        // Remove the "Usage: " prefix which is not in the readme
+        usage = usage.replace("Usage: ", "");
+        assert!(readme.contains(&usage));
+    }
 }
