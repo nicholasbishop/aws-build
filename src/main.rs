@@ -46,6 +46,14 @@ fn ensure_dir_exists(path: &Path) {
     }
 }
 
+#[throws]
+fn read_path_var(name: &str) -> PathBuf {
+    let value = env::var_os(name)
+        .ok_or_else(|| anyhow!("{} env var is not set", name))?;
+
+    Path::new(&value).into()
+}
+
 /// Build the project in a container for deployment to Lambda.
 #[derive(FromArgs)]
 struct Opt {
@@ -76,16 +84,9 @@ fn main() {
             opt.project.display(),
         ))?;
 
-    let home: PathBuf = Path::new(
-        &env::var_os("HOME")
-            .ok_or_else(|| anyhow!("HOME env var is not set"))?,
-    )
-    .into();
-    let cache: PathBuf = if let Some(cache) = env::var_os("XDG_CACHE_HOME") {
-        Path::new(&cache).into()
-    } else {
-        home.join(".cache")
-    };
+    let home = read_path_var("HOME")?;
+    let cache =
+        read_path_var("XDG_CACHE_HOME").unwrap_or_else(|_| home.join(".cache"));
     let repo_path = cache.join("lambda-build/repo");
     ensure_dir_exists(&repo_path)?;
 
