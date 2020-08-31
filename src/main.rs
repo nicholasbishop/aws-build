@@ -240,6 +240,7 @@ fn main() {
 
         // Create the zip file containing just a bootstrap file (the
         // executable)
+        println!("writing {}", dst.display());
         let file = fs::File::create(&dst)
             .context(format!("failed to create {}", dst.display()))?;
         let mut zip = ZipWriter::new(file);
@@ -252,5 +253,6 @@ fn main() {
     }
 
     let latest_path = output_dir.join("latest");
+    println!("writing {}", latest_path.display());
     fs::write(latest_path, zip_names.join("\n") + "\n")?;
 }
