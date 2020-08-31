@@ -95,6 +95,16 @@ fn make_zip_name(name: &str, contents: &[u8], when: Date<Utc>) -> String {
     )
 }
 
+#[throws]
+fn get_cache_dir() -> PathBuf {
+    if let Ok(dir) = read_path_var("XDG_CACHE_HOME") {
+        dir
+    } else {
+        let home = read_path_var("HOME")?;
+        home.join(".cache")
+    }
+}
+
 /// Build the project in a container for deployment to Lambda.
 #[derive(Debug, FromArgs)]
 struct Opt {
@@ -125,9 +135,7 @@ fn main() {
             opt.project.display(),
         ))?;
 
-    let home = read_path_var("HOME")?;
-    let cache =
-        read_path_var("XDG_CACHE_HOME").unwrap_or_else(|_| home.join(".cache"));
+    let cache = get_cache_dir()?;
     let repo_path = cache.join("lambda-build/repo");
     ensure_dir_exists(&repo_path)?;
 
