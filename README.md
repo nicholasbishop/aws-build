@@ -7,7 +7,7 @@ This project is a thin wrapper around the excellent
 provides "a faithful reproduction of the actual AWS [...] Lambda
 runtime environment" with the stable Rust toolchain installed.
 
-The lambda-build program expands on lambda-rust in two ways:
+The lambda-build program expands on lambda-rust in a few ways:
 1. It downloads the lambda-rust repo and builds a specific branch,
    tag, or commit instead of using a build from Docker hub. This is
    useful because the lambda-rust repo is sometimes updated without a
@@ -15,6 +15,9 @@ The lambda-build program expands on lambda-rust in two ways:
 2. It builds and runs the lambda-rust container with all the necessary
    options. There are a number of volumes that need to get mounted in
    the right place for caching to work.
+3. The zip files are created with unique names that include the date
+   and a partial sha256 hash. This is convenient when uploading to S3
+   so that new packages don't overwrite old ones.
    
 This program only handles building the project locally. It does not
 interact with any AWS services.
@@ -32,8 +35,9 @@ the directory of the project you want to build. You can also pass an
 explicit directory to build. By default the master branch of
 `lambda-rust` is used; a different one can be set with `--rev`.
 
-The lambda package will be output to
-`lambda-target/lambda/release/lambda-build.zip`.
+On successful completion, the packaged zip file(s) will be written to
+the `lambda-target` directory. There is also a `lambda-target/latest`
+file that contains the names of all the zip files written.
 
 ```
 lambda-build [<project>] [--repo <repo>] [--rev <rev>] [--cmd <cmd>]
