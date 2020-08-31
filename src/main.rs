@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Context, Error};
 use argh::FromArgs;
 use cargo_metadata::MetadataCommand;
-use chrono::{Datelike, Utc};
+use chrono::{Date, Datelike, Utc};
 use fehler::{throw, throws};
 use sha2::Digest;
 use std::ffi::OsString;
@@ -72,6 +72,27 @@ fn get_package_binaries(path: &Path) -> Vec<String> {
         }
     }
     names
+}
+
+/// Create the unique zip file name.
+///
+/// The file name is intended to be identifiable, sortable by time,
+/// unique, and reasonably short. To make this it includes:
+/// - executable name
+/// - year, month, and day
+/// - first 16 digits of the sha256 hex hash
+fn make_zip_name(name: &str, contents: &[u8], when: Date<Utc>) -> String {
+    let hash = sha2::Sha256::digest(&contents);
+    format!(
+        "{}-{}{:02}{:02}-{:.16x}.zip",
+        name,
+        when.year(),
+        when.month(),
+        when.day(),
+        // The hash is truncated to 16 characters so that the file
+        // name isn't unnecessarily long
+        hash
+    )
 }
 
 /// Build the project in a container for deployment to Lambda.
@@ -223,18 +244,7 @@ fn main() {
         let src = output_dir.join("lambda/release").join(&name);
         let contents = fs::read(&src)
             .context(format!("failed to read {}", src.display()))?;
-        let now = Utc::now();
-        let hash = sha2::Sha256::digest(&contents);
-        let dst_name = format!(
-            "{}-{}{}{}-{:.16x}.zip",
-            name,
-            now.year(),
-            now.month(),
-            now.day(),
-            // The hash is truncated to 16 characters so that the file
-            // name isn't unnecessarily long
-            hash
-        );
+        let dst_name = make_zip_name(&name, &contents, Utc::now().date());
         let dst = output_dir.join(&dst_name);
         zip_names.push(dst_name);
 
@@ -260,6 +270,7 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
 
     /// Test that the readme's usage section is up to date
     #[test]
@@ -271,5 +282,14 @@ mod tests {
         // Remove the "Usage: " prefix which is not in the readme
         usage = usage.replace("Usage: ", "");
         assert!(readme.contains(&usage));
+    }
+
+    #[test]
+    fn test_zip_name() {
+        let when = Utc.ymd(2020, 8, 31);
+        assert_eq!(
+            make_zip_name("testexecutable", "testcontents".as_bytes(), when),
+            "testexecutable-20200831-7097a82a108e78da.zip"
+        );
     }
 }
