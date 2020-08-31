@@ -54,6 +54,9 @@ Options:
 
 ## Related projects
 
-[cargo-aws-lambda](https://github.com/vvilhonen/cargo-aws-lambda):
-"dependency free cargo subcommand for cross-compiling, packaging and
-deploying code quickly to AWS Lambda"
+- [lambda-rust](https://github.com/softprops/lambda-rust): "a faithful
+  reproduction of the actual AWS [...] Lambda runtime environment" with
+  the stable Rust toolchain installed
+- [cargo-aws-lambda](https://github.com/vvilhonen/cargo-aws-lambda):
+  "dependency free cargo subcommand for cross-compiling, packaging and
+  deploying code quickly to AWS Lambda"
