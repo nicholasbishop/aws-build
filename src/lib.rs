@@ -127,7 +127,7 @@ pub struct Opt {
 }
 
 #[throws]
-pub fn run(opt: &Opt) {
+pub fn run(opt: &Opt) -> Vec<PathBuf> {
     let repo_url = &opt.repo;
     let project_path =
         opt.project.canonicalize().context(format!(
@@ -248,6 +248,7 @@ pub fn run(opt: &Opt) {
     // each other. The new name is
     // "<exec-name>-<yyyymmdd>-<exec-hash>.zip".
     let mut zip_names = Vec::new();
+    let mut zip_paths = Vec::new();
     for name in binaries {
         let src = output_dir.join("lambda/release").join(&name);
         let contents = fs::read(&src)
@@ -255,6 +256,7 @@ pub fn run(opt: &Opt) {
         let dst_name = make_zip_name(&name, &contents, Utc::now().date());
         let dst = output_dir.join(&dst_name);
         zip_names.push(dst_name);
+        zip_paths.push(dst.clone());
 
         // Create the zip file containing just a bootstrap file (the
         // executable)
@@ -273,6 +275,8 @@ pub fn run(opt: &Opt) {
     let latest_path = output_dir.join("latest");
     info!("writing {}", latest_path.display());
     fs::write(latest_path, zip_names.join("\n") + "\n")?;
+
+    zip_paths
 }
 
 #[cfg(test)]
