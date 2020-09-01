@@ -201,6 +201,7 @@ dependencies = [
  "cargo_metadata",
  "chrono",
  "fehler",
+ "log",
  "sha2",
  "users",
  "zip",

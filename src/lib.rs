@@ -3,6 +3,7 @@ use argh::FromArgs;
 use cargo_metadata::MetadataCommand;
 use chrono::{Date, Datelike, Utc};
 use fehler::{throw, throws};
+use log::info;
 use sha2::Digest;
 use std::ffi::OsString;
 use std::io::Write;
@@ -22,7 +23,7 @@ fn cmd_str(cmd: &Command) -> String {
 #[throws]
 fn run_cmd_no_check(cmd: &mut Command) -> ExitStatus {
     let cmd_str = cmd_str(cmd);
-    println!("{}", cmd_str);
+    info!("{}", cmd_str);
     cmd.status().context(format!("failed to run {}", cmd_str))?
 }
 
@@ -45,7 +46,7 @@ fn git_cmd_in(repo_path: &Path) -> Command {
 #[throws]
 fn ensure_dir_exists(path: &Path) {
     // Ignore the return value since the directory might already exist
-    let _ = fs::create_dir(path);
+    let _ = fs::create_dir_all(path);
     if !path.is_dir() {
         throw!(anyhow!("failed to create directory {}", path.display()));
     }
@@ -257,7 +258,7 @@ pub fn run(opt: &Opt) {
 
         // Create the zip file containing just a bootstrap file (the
         // executable)
-        println!("writing {}", dst.display());
+        info!("writing {}", dst.display());
         let file = fs::File::create(&dst)
             .context(format!("failed to create {}", dst.display()))?;
         let mut zip = ZipWriter::new(file);
@@ -270,7 +271,7 @@ pub fn run(opt: &Opt) {
     }
 
     let latest_path = output_dir.join("latest");
-    println!("writing {}", latest_path.display());
+    info!("writing {}", latest_path.display());
     fs::write(latest_path, zip_names.join("\n") + "\n")?;
 }
 

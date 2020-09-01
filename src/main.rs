@@ -2,8 +2,31 @@ use anyhow::Error;
 use fehler::throws;
 use lambda_build::{run, Opt};
 
+use log::{Level, Metadata, Record};
+
+struct SimpleLogger;
+
+impl log::Log for SimpleLogger {
+    fn enabled(&self, metadata: &Metadata) -> bool {
+        metadata.level() <= Level::Info
+    }
+
+    fn log(&self, record: &Record) {
+        if self.enabled(record.metadata()) {
+            println!("{}", record.args());
+        }
+    }
+
+    fn flush(&self) {}
+}
+
+static LOGGER: SimpleLogger = SimpleLogger;
+
 #[throws]
 fn main() {
+    log::set_logger(&LOGGER)
+        .map(|()| log::set_max_level(log::LevelFilter::Info))?;
+
     let opt: Opt = argh::from_env();
     run(&opt)?;
 }
