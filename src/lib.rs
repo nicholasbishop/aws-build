@@ -46,18 +46,10 @@ fn git_cmd_in(repo_path: &Path) -> Command {
 #[throws]
 fn ensure_dir_exists(path: &Path) {
     // Ignore the return value since the directory might already exist
-    let _ = fs::create_dir_all(path);
+    let _ = fs::create_dir(path);
     if !path.is_dir() {
         throw!(anyhow!("failed to create directory {}", path.display()));
     }
-}
-
-#[throws]
-fn read_path_var(name: &str) -> PathBuf {
-    let value = env::var_os(name)
-        .ok_or_else(|| anyhow!("{} env var is not set", name))?;
-
-    Path::new(&value).into()
 }
 
 /// Get the names of all the binaries targets in a project.
@@ -96,16 +88,6 @@ fn make_zip_name(name: &str, contents: &[u8], when: Date<Utc>) -> String {
     )
 }
 
-#[throws]
-fn get_cache_dir() -> PathBuf {
-    if let Ok(dir) = read_path_var("XDG_CACHE_HOME") {
-        dir
-    } else {
-        let home = read_path_var("HOME")?;
-        home.join(".cache")
-    }
-}
-
 /// Build the project in a container for deployment to Lambda.
 #[derive(Debug, FromArgs)]
 pub struct Opt {
@@ -128,15 +110,28 @@ pub struct Opt {
 
 #[throws]
 pub fn run(opt: &Opt) -> Vec<PathBuf> {
-    let repo_url = &opt.repo;
+    // Canonicalize the project path. This is necessary for when it's
+    // passed as a Docker volume arg.
     let project_path =
         opt.project.canonicalize().context(format!(
             "failed to canonicalize {}",
             opt.project.display(),
         ))?;
 
-    let cache = get_cache_dir()?;
-    let repo_path = cache.join("lambda-build/repo");
+    // Ensure that the target directory exists. The output directory
+    // ("lambda-target") is mounted to /code/target in the container,
+    // but we mount /code from the host read-only, so the target
+    // subdirectory needs to already exist. Usually the "target"
+    // directory will already exist on the host, but won't if "cargo
+    // test" or similar hasn't been run yet.
+    ensure_dir_exists(&project_path.join("target"))?;
+
+    // Create the output directory if it doesn't already exist.
+    let output_dir = project_path.join("lambda-target");
+    ensure_dir_exists(&output_dir)?;
+
+    let repo_url = &opt.repo;
+    let repo_path = output_dir.join("lambda-rust");
     ensure_dir_exists(&repo_path)?;
 
     if !repo_path.join(".git").exists() {
@@ -191,20 +186,6 @@ pub fn run(opt: &Opt) -> Vec<PathBuf> {
         s.push(":ro");
         s
     };
-
-    // Ensure that the target directory exists. The output directory
-    // ("lambda-target") is mounted to /code/target in the container,
-    // but we mount /code from the host read-only, so the target
-    // subdirectory needs to already exist. Usually the "target"
-    // directory will already exist on the host, but won't if "cargo
-    // test" or similar hasn't been run yet.
-    ensure_dir_exists(&project_path.join("target"))?;
-
-    // Create the output directory if it doesn't already exist. This
-    // ensures it has the right permissions instead of being owned by
-    // root.
-    let output_dir = project_path.join("lambda-target");
-    ensure_dir_exists(&output_dir)?;
 
     // Create two cache directories to speed up rebuilds. These are
     // host mounts rather than volumes so that the permissions aren't
