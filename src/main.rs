@@ -4,9 +4,9 @@ use lambda_build::{run, Opt};
 
 use log::{Level, Metadata, Record};
 
-struct SimpleLogger;
+struct Logger;
 
-impl log::Log for SimpleLogger {
+impl log::Log for Logger {
     fn enabled(&self, metadata: &Metadata) -> bool {
         metadata.level() <= Level::Info
     }
@@ -20,7 +20,7 @@ impl log::Log for SimpleLogger {
     fn flush(&self) {}
 }
 
-static LOGGER: SimpleLogger = SimpleLogger;
+static LOGGER: Logger = Logger;
 
 #[throws]
 fn main() {
