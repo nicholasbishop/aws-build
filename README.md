@@ -7,7 +7,7 @@ This project is a thin wrapper around the excellent
 provides "a faithful reproduction of the actual AWS [...] Lambda
 runtime environment" with the stable Rust toolchain installed.
 
-The lambda-build program expands on lambda-rust in a few ways:
+The lambda-build crate expands on lambda-rust in a few ways:
 1. It downloads the lambda-rust repo and builds a specific branch,
    tag, or commit instead of using a build from Docker hub. This is
    useful because the lambda-rust repo is sometimes updated without a
@@ -19,9 +19,12 @@ The lambda-build program expands on lambda-rust in a few ways:
    and a partial sha256 hash. This is convenient when uploading to S3
    so that new packages don't overwrite old ones.
    
-This program only handles building the project locally. It does not
+This crate only handles building the project locally. It does not
 interact with any AWS services.
-   
+
+Both a library and an executable are provided. The executable is a
+very thin wrapper around the library.
+
 ## Installation
 
 ```
