@@ -1,20 +1,19 @@
 use anyhow::{anyhow, Context, Error};
-use argh::FromArgs;
 use cargo_metadata::MetadataCommand;
 use chrono::{Date, Datelike, Utc};
 use fehler::{throw, throws};
 use log::info;
 use sha2::Digest;
 use std::ffi::OsString;
+use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
-use std::{env, fs};
 use zip::ZipWriter;
 
-static DEFAULT_REPO: &str = "https://github.com/softprops/lambda-rust";
-static DEFAULT_REV: &str = "master";
-static DEFAULT_CONTAINER_CMD: &str = "docker";
+pub static DEFAULT_REPO: &str = "https://github.com/softprops/lambda-rust";
+pub static DEFAULT_REV: &str = "master";
+pub static DEFAULT_CONTAINER_CMD: &str = "docker";
 
 fn cmd_str(cmd: &Command) -> String {
     format!("{:?}", cmd).replace('"', "")
@@ -88,176 +87,184 @@ fn make_zip_name(name: &str, contents: &[u8], when: Date<Utc>) -> String {
     )
 }
 
-/// Build the project in a container for deployment to Lambda.
-#[derive(Debug, FromArgs)]
-pub struct Opt {
-    /// lambda-rust repo (default: https://github.com/softprops/lambda-rust)
-    #[argh(option, default = "DEFAULT_REPO.into()")]
-    repo: String,
+/// Options for running the build.
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct LambdaBuilder {
+    /// The lambda-rust repo URL.
+    pub repo: String,
 
-    /// branch/tag/commit from which to build (default: master)
-    #[argh(option, default = "DEFAULT_REV.into()")]
-    rev: String,
+    /// Branch/tag/commit from which to build.
+    pub rev: String,
 
-    /// container command (default: docker)
-    #[argh(option, default = "DEFAULT_CONTAINER_CMD.into()")]
-    cmd: String,
+    /// Container command.
+    pub container_cmd: String,
 
-    /// path of the project to build
-    #[argh(positional, default = "env::current_dir().unwrap()")]
-    project: PathBuf,
+    /// Path of the project to build.
+    pub project: PathBuf,
 }
 
-#[throws]
-pub fn run(opt: &Opt) -> Vec<PathBuf> {
-    // Canonicalize the project path. This is necessary for when it's
-    // passed as a Docker volume arg.
-    let project_path =
-        opt.project.canonicalize().context(format!(
+impl Default for LambdaBuilder {
+    fn default() -> Self {
+        LambdaBuilder {
+            repo: DEFAULT_REPO.into(),
+            rev: DEFAULT_REV.into(),
+            container_cmd: DEFAULT_CONTAINER_CMD.into(),
+            project: PathBuf::default(),
+        }
+    }
+}
+
+impl LambdaBuilder {
+    #[throws]
+    pub fn run(&self) -> Vec<PathBuf> {
+        // Canonicalize the project path. This is necessary for when it's
+        // passed as a Docker volume arg.
+        let project_path = self.project.canonicalize().context(format!(
             "failed to canonicalize {}",
-            opt.project.display(),
+            self.project.display(),
         ))?;
 
-    // Ensure that the target directory exists. The output directory
-    // ("lambda-target") is mounted to /code/target in the container,
-    // but we mount /code from the host read-only, so the target
-    // subdirectory needs to already exist. Usually the "target"
-    // directory will already exist on the host, but won't if "cargo
-    // test" or similar hasn't been run yet.
-    ensure_dir_exists(&project_path.join("target"))?;
+        // Ensure that the target directory exists. The output directory
+        // ("lambda-target") is mounted to /code/target in the container,
+        // but we mount /code from the host read-only, so the target
+        // subdirectory needs to already exist. Usually the "target"
+        // directory will already exist on the host, but won't if "cargo
+        // test" or similar hasn't been run yet.
+        ensure_dir_exists(&project_path.join("target"))?;
 
-    // Create the output directory if it doesn't already exist.
-    let output_dir = project_path.join("lambda-target");
-    ensure_dir_exists(&output_dir)?;
+        // Create the output directory if it doesn't already exist.
+        let output_dir = project_path.join("lambda-target");
+        ensure_dir_exists(&output_dir)?;
 
-    let repo_url = &opt.repo;
-    let repo_path = output_dir.join("lambda-rust");
-    ensure_dir_exists(&repo_path)?;
+        let repo_url = &self.repo;
+        let repo_path = output_dir.join("lambda-rust");
+        ensure_dir_exists(&repo_path)?;
 
-    if !repo_path.join(".git").exists() {
-        // Clone the repo if it doesn't exist
-        run_cmd(
-            Command::new("git")
-                .args(&["clone", repo_url])
-                .arg(&repo_path),
-        )?;
-    } else {
-        // Ensure the remote is set correctly
-        run_cmd(
+        if !repo_path.join(".git").exists() {
+            // Clone the repo if it doesn't exist
+            run_cmd(
+                Command::new("git")
+                    .args(&["clone", repo_url])
+                    .arg(&repo_path),
+            )?;
+        } else {
+            // Ensure the remote is set correctly
+            run_cmd(
+                git_cmd_in(&repo_path)
+                    .args(&["remote", "set-url", "origin"])
+                    .arg(repo_url),
+            )?;
+            // Fetch updates
+            run_cmd(git_cmd_in(&repo_path).arg("fetch"))?;
+        };
+
+        // Check out the specified revision. First we try checking out
+        // `origin/<rev>`. This will work if the rev is a branch, and
+        // ensures that we get the latest commit from that branch rather
+        // than a local branch that could fall out of date. If that
+        // command fails we check out the rev directly, which should work
+        // for tags and commit hashes.
+        let status = run_cmd_no_check(
             git_cmd_in(&repo_path)
-                .args(&["remote", "set-url", "origin"])
-                .arg(repo_url),
+                .args(&["checkout", &format!("origin/{}", self.rev)]),
         )?;
-        // Fetch updates
-        run_cmd(git_cmd_in(&repo_path).arg("fetch"))?;
-    };
+        if !status.success() {
+            run_cmd(git_cmd_in(&repo_path).args(&["checkout", &self.rev]))?;
+        }
 
-    // Check out the specified revision. First we try checking out
-    // `origin/<rev>`. This will work if the rev is a branch, and
-    // ensures that we get the latest commit from that branch rather
-    // than a local branch that could fall out of date. If that
-    // command fails we check out the rev directly, which should work
-    // for tags and commit hashes.
-    let status = run_cmd_no_check(
-        git_cmd_in(&repo_path)
-            .args(&["checkout", &format!("origin/{}", opt.rev)]),
-    )?;
-    if !status.success() {
-        run_cmd(git_cmd_in(&repo_path).args(&["checkout", &opt.rev]))?;
+        // Build the container
+        let image_tag = "rust-lambda-build";
+        run_cmd(
+            Command::new(&self.container_cmd)
+                .current_dir(&repo_path)
+                .args(&["build", "--tag", image_tag, "."]),
+        )?;
+
+        let volume = |src: &Path, dst: &Path| {
+            let mut s = OsString::new();
+            s.push(src);
+            s.push(":");
+            s.push(dst);
+            s
+        };
+        let volume_read_only = |src, dst| {
+            let mut s = volume(src, dst);
+            s.push(":ro");
+            s
+        };
+
+        // Create two cache directories to speed up rebuilds. These are
+        // host mounts rather than volumes so that the permissions aren't
+        // set to root only.
+        let registry_dir = output_dir.join("cargo-registry");
+        ensure_dir_exists(&registry_dir)?;
+        let git_dir = output_dir.join("cargo-git");
+        ensure_dir_exists(&git_dir)?;
+
+        // Run the container
+        run_cmd(
+            Command::new(&self.container_cmd)
+                .args(&["run", "--rm", "--init"])
+                .arg("-u")
+                .arg(format!(
+                    "{}:{}",
+                    users::get_current_uid(),
+                    users::get_current_gid()
+                ))
+                // Mount the project directory
+                .arg("-v")
+                .arg(volume_read_only(&project_path, Path::new("/code")))
+                // Mount two Docker volumes to make rebuilds faster
+                .arg("-v")
+                .arg(volume(&registry_dir, Path::new("/cargo/registry")))
+                .arg("-v")
+                .arg(volume(&git_dir, Path::new("/cargo/git")))
+                // Mount the output target directory
+                .arg("-v")
+                .arg(volume(&output_dir, Path::new("/code/target")))
+                .arg(image_tag),
+        )?;
+
+        // Get the binary target names.
+        let binaries = get_package_binaries(&project_path)?;
+
+        // Zip each binary and give the zip a unique name. The lambda-rust
+        // build already zips the binaries, but the name is just the
+        // binary name. It's helpful to have a more specific name so that
+        // multiple versions can be uploaded to S3 without overwriting
+        // each other. The new name is
+        // "<exec-name>-<yyyymmdd>-<exec-hash>.zip".
+        let mut zip_names = Vec::new();
+        let mut zip_paths = Vec::new();
+        for name in binaries {
+            let src = output_dir.join("lambda/release").join(&name);
+            let contents = fs::read(&src)
+                .context(format!("failed to read {}", src.display()))?;
+            let dst_name = make_zip_name(&name, &contents, Utc::now().date());
+            let dst = output_dir.join(&dst_name);
+            zip_names.push(dst_name);
+            zip_paths.push(dst.clone());
+
+            // Create the zip file containing just a bootstrap file (the
+            // executable)
+            info!("writing {}", dst.display());
+            let file = fs::File::create(&dst)
+                .context(format!("failed to create {}", dst.display()))?;
+            let mut zip = ZipWriter::new(file);
+            let options = zip::write::FileOptions::default()
+                .compression_method(zip::CompressionMethod::Deflated);
+            zip.start_file("bootstrap", options)?;
+            zip.write_all(&contents)?;
+
+            zip.finish()?;
+        }
+
+        let latest_path = output_dir.join("latest");
+        info!("writing {}", latest_path.display());
+        fs::write(latest_path, zip_names.join("\n") + "\n")?;
+
+        zip_paths
     }
-
-    // Build the container
-    let image_tag = "rust-lambda-build";
-    run_cmd(
-        Command::new(&opt.cmd)
-            .current_dir(&repo_path)
-            .args(&["build", "--tag", image_tag, "."]),
-    )?;
-
-    let volume = |src: &Path, dst: &Path| {
-        let mut s = OsString::new();
-        s.push(src);
-        s.push(":");
-        s.push(dst);
-        s
-    };
-    let volume_read_only = |src, dst| {
-        let mut s = volume(src, dst);
-        s.push(":ro");
-        s
-    };
-
-    // Create two cache directories to speed up rebuilds. These are
-    // host mounts rather than volumes so that the permissions aren't
-    // set to root only.
-    let registry_dir = output_dir.join("cargo-registry");
-    ensure_dir_exists(&registry_dir)?;
-    let git_dir = output_dir.join("cargo-git");
-    ensure_dir_exists(&git_dir)?;
-
-    // Run the container
-    run_cmd(
-        Command::new(&opt.cmd)
-            .args(&["run", "--rm", "--init"])
-            .arg("-u")
-            .arg(format!(
-                "{}:{}",
-                users::get_current_uid(),
-                users::get_current_gid()
-            ))
-            // Mount the project directory
-            .arg("-v")
-            .arg(volume_read_only(&project_path, Path::new("/code")))
-            // Mount two Docker volumes to make rebuilds faster
-            .arg("-v")
-            .arg(volume(&registry_dir, Path::new("/cargo/registry")))
-            .arg("-v")
-            .arg(volume(&git_dir, Path::new("/cargo/git")))
-            // Mount the output target directory
-            .arg("-v")
-            .arg(volume(&output_dir, Path::new("/code/target")))
-            .arg(image_tag),
-    )?;
-
-    // Get the binary target names.
-    let binaries = get_package_binaries(&project_path)?;
-
-    // Zip each binary and give the zip a unique name. The lambda-rust
-    // build already zips the binaries, but the name is just the
-    // binary name. It's helpful to have a more specific name so that
-    // multiple versions can be uploaded to S3 without overwriting
-    // each other. The new name is
-    // "<exec-name>-<yyyymmdd>-<exec-hash>.zip".
-    let mut zip_names = Vec::new();
-    let mut zip_paths = Vec::new();
-    for name in binaries {
-        let src = output_dir.join("lambda/release").join(&name);
-        let contents = fs::read(&src)
-            .context(format!("failed to read {}", src.display()))?;
-        let dst_name = make_zip_name(&name, &contents, Utc::now().date());
-        let dst = output_dir.join(&dst_name);
-        zip_names.push(dst_name);
-        zip_paths.push(dst.clone());
-
-        // Create the zip file containing just a bootstrap file (the
-        // executable)
-        info!("writing {}", dst.display());
-        let file = fs::File::create(&dst)
-            .context(format!("failed to create {}", dst.display()))?;
-        let mut zip = ZipWriter::new(file);
-        let options = zip::write::FileOptions::default()
-            .compression_method(zip::CompressionMethod::Deflated);
-        zip.start_file("bootstrap", options)?;
-        zip.write_all(&contents)?;
-
-        zip.finish()?;
-    }
-
-    let latest_path = output_dir.join("latest");
-    info!("writing {}", latest_path.display());
-    fs::write(latest_path, zip_names.join("\n") + "\n")?;
-
-    zip_paths
 }
 
 #[cfg(test)]
