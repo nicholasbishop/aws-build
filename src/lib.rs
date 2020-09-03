@@ -15,8 +15,12 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use zip::ZipWriter;
 
+/// Default lambda-rust repo URL.
 pub static DEFAULT_REPO: &str = "https://github.com/softprops/lambda-rust";
+/// Default revision of the lambda-rust repo to use. Can be a branch,
+/// tag, or commit hash.
 pub static DEFAULT_REV: &str = "master";
+/// Default container command used to run the build.
 pub static DEFAULT_CONTAINER_CMD: &str = "docker";
 
 /// Create directory if it doesn't already exist.
@@ -74,7 +78,8 @@ pub struct LambdaBuilder {
     /// Branch/tag/commit from which to build.
     pub rev: String,
 
-    /// Container command.
+    /// Container command. Defaults to "docker", but "podman" should
+    /// work as well.
     pub container_cmd: String,
 
     /// Path of the project to build.
