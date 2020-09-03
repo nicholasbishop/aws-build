@@ -93,6 +93,14 @@ impl Default for LambdaBuilder {
 }
 
 impl LambdaBuilder {
+    /// Run the build in a container.
+    ///
+    /// This will produce zip files ready for use with AWS Lambda in
+    /// the lambda-target subdirectory, one zip file per binary
+    /// target. The lambda-target/latest file will be updated with a
+    /// list of the latest zip names.
+    ///
+    /// Returns the full paths of each zip file.
     #[throws]
     pub fn run(&self) -> Vec<PathBuf> {
         // Canonicalize the project path. This is necessary for when it's
