@@ -87,6 +87,28 @@ fn make_zip_name(name: &str, contents: &[u8], when: Date<Utc>) -> String {
     )
 }
 
+/// Get the commit hash of the given target.
+///
+/// Example output: "46794db6816e4a07077cf02711ff1921d50e08d3".
+#[throws]
+fn git_get_commit_hash(repo: &Path, target: &str) -> String {
+    let mut cmd = git_cmd_in(repo);
+    cmd.args(&["rev-parse", target]);
+    let cmd_str = cmd_str(&cmd);
+    let output = cmd.output().context(format!("failed to run {}", cmd_str))?;
+    if !output.status.success() {
+        throw!(anyhow!("command {} failed: {}", cmd_str, output.status));
+    }
+    let hash = String::from_utf8(output.stdout)
+        .context("failed to convert rev-parse output to a string")?
+        .trim()
+        .to_string();
+    if hash.len() != 40 {
+        throw!(anyhow!("invalid commit hash"));
+    }
+    hash
+}
+
 /// Options for running the build.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct LambdaBuilder {
@@ -173,11 +195,14 @@ impl LambdaBuilder {
         }
 
         // Build the container
-        let image_tag = "rust-lambda-build";
+        let image_tag = format!(
+            "lambda-build-{:.16}",
+            git_get_commit_hash(&repo_path, "HEAD")?
+        );
         run_cmd(
             Command::new(&self.container_cmd)
                 .current_dir(&repo_path)
-                .args(&["build", "--tag", image_tag, "."]),
+                .args(&["build", "--tag", &image_tag, "."]),
         )?;
 
         let volume = |src: &Path, dst: &Path| {
