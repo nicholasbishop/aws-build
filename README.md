@@ -1,5 +1,8 @@
 # lambda-build
 
+[![crates.io](https://img.shields.io/crates/v/lambda-build.svg)](https://crates.io/crates/lambda-build)
+[![Documentation](https://docs.rs/lambda-build/badge.svg)](https://docs.rs/lambda-build)
+
 Build a Rust project in a container for deployment to AWS Lambda.
 
 This project is a thin wrapper around the excellent
