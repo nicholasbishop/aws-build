@@ -1,13 +1,12 @@
 mod command;
+mod git;
 
 use anyhow::{anyhow, Context, Error};
 use cargo_metadata::MetadataCommand;
 use chrono::{Date, Datelike, Utc};
-use command::{
-    git_checkout, git_clone, git_fetch, git_remote_set_url, git_rev_parse,
-    run_cmd,
-};
+use command::run_cmd;
 use fehler::{throw, throws};
+use git::Repo;
 use log::info;
 use sha2::Digest;
 use std::ffi::OsString;
@@ -117,28 +116,27 @@ impl LambdaBuilder {
         ensure_dir_exists(&output_dir)?;
 
         let repo_url = &self.repo;
-        let repo_path = output_dir.join("lambda-rust");
-        ensure_dir_exists(&repo_path)?;
+        let repo = Repo::new(output_dir.join("lambda-rust"));
+        ensure_dir_exists(&repo.path)?;
 
-        if !repo_path.join(".git").exists() {
+        if !repo.path.join(".git").exists() {
             // Clone the repo if it doesn't exist
-            git_clone(&repo_path, repo_url)?;
+            repo.clone(repo_url)?;
         } else {
             // Ensure the remote is set correctly
-            git_remote_set_url(&repo_path, repo_url)?;
+            repo.remote_set_url(repo_url)?;
             // Fetch updates
-            git_fetch(&repo_path)?;
+            repo.fetch()?;
         };
 
         // Check out the specified revision.
-        git_checkout(&repo_path, &self.rev)?;
+        repo.checkout(&self.rev)?;
 
         // Build the container
-        let image_tag =
-            format!("lambda-build-{:.16}", git_rev_parse(&repo_path, "HEAD")?);
+        let image_tag = format!("lambda-build-{:.16}", repo.rev_parse("HEAD")?);
         run_cmd(
             Command::new(&self.container_cmd)
-                .current_dir(&repo_path)
+                .current_dir(&repo.path)
                 .args(&["build", "--tag", &image_tag, "."]),
         )?;
 
