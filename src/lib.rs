@@ -1,6 +1,12 @@
+mod command;
+
 use anyhow::{anyhow, Context, Error};
 use cargo_metadata::MetadataCommand;
 use chrono::{Date, Datelike, Utc};
+use command::{
+    git_checkout, git_clone, git_fetch, git_remote_set_url, git_rev_parse,
+    run_cmd,
+};
 use fehler::{throw, throws};
 use log::info;
 use sha2::Digest;
@@ -8,38 +14,12 @@ use std::ffi::OsString;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitStatus};
+use std::process::Command;
 use zip::ZipWriter;
 
 pub static DEFAULT_REPO: &str = "https://github.com/softprops/lambda-rust";
 pub static DEFAULT_REV: &str = "master";
 pub static DEFAULT_CONTAINER_CMD: &str = "docker";
-
-fn cmd_str(cmd: &Command) -> String {
-    format!("{:?}", cmd).replace('"', "")
-}
-
-#[throws]
-fn run_cmd_no_check(cmd: &mut Command) -> ExitStatus {
-    let cmd_str = cmd_str(cmd);
-    info!("{}", cmd_str);
-    cmd.status().context(format!("failed to run {}", cmd_str))?
-}
-
-#[throws]
-fn run_cmd(cmd: &mut Command) {
-    let cmd_str = cmd_str(cmd);
-    let status = run_cmd_no_check(cmd)?;
-    if !status.success() {
-        throw!(anyhow!("command {} failed: {}", cmd_str, status));
-    }
-}
-
-fn git_cmd_in(repo_path: &Path) -> Command {
-    let mut cmd = Command::new("git");
-    cmd.arg("-C").arg(repo_path);
-    cmd
-}
 
 /// Create directory if it doesn't already exist.
 #[throws]
@@ -85,28 +65,6 @@ fn make_zip_name(name: &str, contents: &[u8], when: Date<Utc>) -> String {
         // name isn't unnecessarily long
         hash
     )
-}
-
-/// Get the commit hash of the given target.
-///
-/// Example output: "46794db6816e4a07077cf02711ff1921d50e08d3".
-#[throws]
-fn git_get_commit_hash(repo: &Path, target: &str) -> String {
-    let mut cmd = git_cmd_in(repo);
-    cmd.args(&["rev-parse", target]);
-    let cmd_str = cmd_str(&cmd);
-    let output = cmd.output().context(format!("failed to run {}", cmd_str))?;
-    if !output.status.success() {
-        throw!(anyhow!("command {} failed: {}", cmd_str, output.status));
-    }
-    let hash = String::from_utf8(output.stdout)
-        .context("failed to convert rev-parse output to a string")?
-        .trim()
-        .to_string();
-    if hash.len() != 40 {
-        throw!(anyhow!("invalid commit hash"));
-    }
-    hash
 }
 
 /// Options for running the build.
@@ -164,41 +122,20 @@ impl LambdaBuilder {
 
         if !repo_path.join(".git").exists() {
             // Clone the repo if it doesn't exist
-            run_cmd(
-                Command::new("git")
-                    .args(&["clone", repo_url])
-                    .arg(&repo_path),
-            )?;
+            git_clone(&repo_path, repo_url)?;
         } else {
             // Ensure the remote is set correctly
-            run_cmd(
-                git_cmd_in(&repo_path)
-                    .args(&["remote", "set-url", "origin"])
-                    .arg(repo_url),
-            )?;
+            git_remote_set_url(&repo_path, repo_url)?;
             // Fetch updates
-            run_cmd(git_cmd_in(&repo_path).arg("fetch"))?;
+            git_fetch(&repo_path)?;
         };
 
-        // Check out the specified revision. First we try checking out
-        // `origin/<rev>`. This will work if the rev is a branch, and
-        // ensures that we get the latest commit from that branch rather
-        // than a local branch that could fall out of date. If that
-        // command fails we check out the rev directly, which should work
-        // for tags and commit hashes.
-        let status = run_cmd_no_check(
-            git_cmd_in(&repo_path)
-                .args(&["checkout", &format!("origin/{}", self.rev)]),
-        )?;
-        if !status.success() {
-            run_cmd(git_cmd_in(&repo_path).args(&["checkout", &self.rev]))?;
-        }
+        // Check out the specified revision.
+        git_checkout(&repo_path, &self.rev)?;
 
         // Build the container
-        let image_tag = format!(
-            "lambda-build-{:.16}",
-            git_get_commit_hash(&repo_path, "HEAD")?
-        );
+        let image_tag =
+            format!("lambda-build-{:.16}", git_rev_parse(&repo_path, "HEAD")?);
         run_cmd(
             Command::new(&self.container_cmd)
                 .current_dir(&repo_path)
