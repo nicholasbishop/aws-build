@@ -1,19 +1,18 @@
 mod command;
+mod docker;
 mod git;
 
 use anyhow::{anyhow, Context, Error};
 use cargo_metadata::MetadataCommand;
 use chrono::{Date, Datelike, Utc};
-use command::run_cmd;
+use docker::{Docker, Volume};
 use fehler::{throw, throws};
 use git::Repo;
 use log::info;
 use sha2::Digest;
-use std::ffi::OsString;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use zip::ZipWriter;
 
 pub static DEFAULT_REPO: &str = "https://github.com/softprops/lambda-rust";
@@ -134,24 +133,8 @@ impl LambdaBuilder {
 
         // Build the container
         let image_tag = format!("lambda-build-{:.16}", repo.rev_parse("HEAD")?);
-        run_cmd(
-            Command::new(&self.container_cmd)
-                .current_dir(&repo.path)
-                .args(&["build", "--tag", &image_tag, "."]),
-        )?;
-
-        let volume = |src: &Path, dst: &Path| {
-            let mut s = OsString::new();
-            s.push(src);
-            s.push(":");
-            s.push(dst);
-            s
-        };
-        let volume_read_only = |src, dst| {
-            let mut s = volume(src, dst);
-            s.push(":ro");
-            s
-        };
+        let docker = Docker::new(self.container_cmd.clone());
+        docker.build(&repo.path, &image_tag)?;
 
         // Create two cache directories to speed up rebuilds. These are
         // host mounts rather than volumes so that the permissions aren't
@@ -162,27 +145,33 @@ impl LambdaBuilder {
         ensure_dir_exists(&git_dir)?;
 
         // Run the container
-        run_cmd(
-            Command::new(&self.container_cmd)
-                .args(&["run", "--rm", "--init"])
-                .arg("-u")
-                .arg(format!(
-                    "{}:{}",
-                    users::get_current_uid(),
-                    users::get_current_gid()
-                ))
+        docker.run(
+            &[
                 // Mount the project directory
-                .arg("-v")
-                .arg(volume_read_only(&project_path, Path::new("/code")))
-                // Mount two Docker volumes to make rebuilds faster
-                .arg("-v")
-                .arg(volume(&registry_dir, Path::new("/cargo/registry")))
-                .arg("-v")
-                .arg(volume(&git_dir, Path::new("/cargo/git")))
+                Volume {
+                    src: project_path.clone(),
+                    dst: Path::new("/code").into(),
+                    read_only: true,
+                },
+                // Mount two cargo directories to make rebuilds faster
+                Volume {
+                    src: registry_dir,
+                    dst: Path::new("/cargo/registry").into(),
+                    read_only: false,
+                },
+                Volume {
+                    src: git_dir,
+                    dst: Path::new("/cargo/git").into(),
+                    read_only: false,
+                },
                 // Mount the output target directory
-                .arg("-v")
-                .arg(volume(&output_dir, Path::new("/code/target")))
-                .arg(image_tag),
+                Volume {
+                    src: output_dir.clone(),
+                    dst: Path::new("/code/target").into(),
+                    read_only: false,
+                },
+            ],
+            &image_tag,
         )?;
 
         // Get the binary target names.
