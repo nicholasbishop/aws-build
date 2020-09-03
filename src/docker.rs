@@ -62,3 +62,21 @@ impl Docker {
         run_cmd(&mut cmd)?;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_volume_arg() {
+        let mut vol = Volume {
+            src: "/mySrc".into(),
+            dst: "/myDst".into(),
+            read_only: false,
+        };
+        assert_eq!(vol.arg(), "/mySrc:/myDst:rw");
+
+        vol.read_only = true;
+        assert_eq!(vol.arg(), "/mySrc:/myDst:ro");
+    }
+}
