@@ -1,9 +1,9 @@
 use anyhow::Error;
 use argh::FromArgs;
-use fehler::throws;
-use lambda_build::{
+use aws_build::{
     LambdaBuilder, DEFAULT_CONTAINER_CMD, DEFAULT_REPO, DEFAULT_REV,
 };
+use fehler::throws;
 use std::env;
 use std::path::PathBuf;
 
@@ -71,7 +71,7 @@ mod tests {
     #[test]
     fn test_readme_usage() {
         let readme = include_str!("../README.md");
-        let mut usage = Opt::from_args(&["lambda-build"], &["--help"])
+        let mut usage = Opt::from_args(&["aws-build"], &["--help"])
             .unwrap_err()
             .output;
         // Remove the "Usage: " prefix which is not in the readme

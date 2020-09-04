@@ -145,7 +145,7 @@ impl LambdaBuilder {
         repo.checkout(&self.rev)?;
 
         // Build the container
-        let image_tag = format!("lambda-build-{:.16}", repo.rev_parse("HEAD")?);
+        let image_tag = format!("aws-build-{:.16}", repo.rev_parse("HEAD")?);
         let docker = Docker::new(self.container_cmd.clone());
         docker.build(&repo.path, &image_tag)?;
 

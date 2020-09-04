@@ -1,7 +1,7 @@
-# lambda-build
+# aws-build
 
-[![crates.io](https://img.shields.io/crates/v/lambda-build.svg)](https://crates.io/crates/lambda-build)
-[![Documentation](https://docs.rs/lambda-build/badge.svg)](https://docs.rs/lambda-build)
+[![crates.io](https://img.shields.io/crates/v/aws-build.svg)](https://crates.io/crates/aws-build)
+[![Documentation](https://docs.rs/aws-build/badge.svg)](https://docs.rs/aws-build)
 
 Build a Rust project in a container for deployment to AWS Lambda.
 
@@ -10,7 +10,7 @@ This project is a thin wrapper around the excellent
 provides "a faithful reproduction of the actual AWS [...] Lambda
 runtime environment" with the stable Rust toolchain installed.
 
-The lambda-build crate expands on lambda-rust in a few ways:
+The aws-build crate expands on lambda-rust in a few ways:
 1. It downloads the lambda-rust repo and builds a specific branch,
    tag, or commit instead of using a build from Docker hub. This is
    useful because the lambda-rust repo is sometimes updated without a
@@ -31,12 +31,12 @@ very thin wrapper around the library.
 ## Installation
 
 ```
-cargo install lambda-build
+cargo install aws-build
 ```
 
 ## Usage
 
-In the common case you should be able to just run `lambda-build` in
+In the common case you should be able to just run `aws-build` in
 the directory of the project you want to build. You can also pass an
 explicit directory to build. By default the master branch of
 `lambda-rust` is used; a different one can be set with `--rev`.
@@ -46,7 +46,7 @@ the `lambda-target` directory. There is also a `lambda-target/latest`
 file that contains the names of all the zip files written.
 
 ```
-lambda-build [<project>] [--repo <repo>] [--rev <rev>] [--cmd <cmd>]
+aws-build [<project>] [--repo <repo>] [--rev <rev>] [--cmd <cmd>]
 
 Build the project in a container for deployment to Lambda.
 

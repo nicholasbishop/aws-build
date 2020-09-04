@@ -1,13 +1,13 @@
 [package]
-name = "lambda-build"
-version = "1.3.1-alpha.0"
+name = "aws-build"
+version = "0.9.0"
 authors = ["Nicholas Bishop <nicholasbishop@gmail.com>"]
 edition = "2018"
-repository = "https://github.com/nicholasbishop/lambda-build"
+repository = "https://github.com/nicholasbishop/aws-build"
 license = "Apache-2.0"
-description = "Build Rust crates for deployment to AWS Lambda"
+description = "Build Rust crates for deployment to AWS EC2 or AWS Lambda"
 readme = "README.md"
-keywords = ["aws", "lambda", "docker", "container", "build"]
+keywords = ["aws", "lambda", "docker", "container", "build", "ec2"]
 
 [dependencies]
 anyhow = "1.0"
