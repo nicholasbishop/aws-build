@@ -1,8 +1,6 @@
 use anyhow::Error;
 use argh::FromArgs;
-use aws_build::{
-    LambdaBuilder, DEFAULT_CONTAINER_CMD, DEFAULT_REPO, DEFAULT_REV,
-};
+use aws_build::{LambdaBuilder, DEFAULT_CONTAINER_CMD};
 use fehler::throws;
 use std::env;
 use std::path::PathBuf;
@@ -27,24 +25,49 @@ impl log::Log for Logger {
 
 static LOGGER: Logger = Logger;
 
-/// Build the project in a container for deployment to Lambda.
+/// Build an executable that can run on Amazon Linux 2.
 #[derive(Debug, FromArgs)]
-pub struct Opt {
-    /// lambda-rust repo (default: https://github.com/softprops/lambda-rust)
-    #[argh(option, default = "DEFAULT_REPO.into()")]
-    repo: String,
+#[argh(subcommand, name = "al2")]
+struct Al2 {
+    // TODO
+}
 
-    /// branch/tag/commit from which to build (default: master)
-    #[argh(option, default = "DEFAULT_REV.into()")]
-    rev: String,
+/// Build a package for deployment to AWS Lambda.
+#[derive(Debug, FromArgs)]
+#[argh(subcommand, name = "lambda")]
+struct Lambda {
+    // TODO
+}
+
+#[derive(Debug, FromArgs)]
+#[argh(subcommand)]
+enum Command {
+    Al2(Al2),
+    Lambda(Lambda),
+}
+
+/// Build the project in a container for deployment to AWS.
+#[derive(Debug, FromArgs)]
+struct Opt {
+    /// change to DIRECTORY before doing anything
+    #[argh(option, short = 'C', default = "env::current_dir().unwrap()")]
+    directory: PathBuf,
 
     /// container command (default: docker)
     #[argh(option, default = "DEFAULT_CONTAINER_CMD.into()")]
-    cmd: String,
+    container_cmd: String,
 
-    /// path of the project to build
-    #[argh(positional, default = "env::current_dir().unwrap()")]
-    project: PathBuf,
+    /// rust version (default: latest stable)
+    #[argh(option)]
+    rust_version: Option<String>,
+
+    /// name of the binary target to build (required if there is more
+    /// than one binary target)
+    #[argh(option)]
+    bin: Option<String>,
+
+    #[argh(subcommand)]
+    command: Command,
 }
 
 #[throws]
@@ -53,13 +76,13 @@ fn main() {
         .map(|()| log::set_max_level(log::LevelFilter::Info))?;
 
     let opt: Opt = argh::from_env();
-    let builder = LambdaBuilder {
-        repo: opt.repo,
-        rev: opt.rev,
-        container_cmd: opt.cmd,
-        project: opt.project,
-    };
-    builder.run()?;
+    // let builder = LambdaBuilder {
+    //     repo: opt.repo,
+    //     rev: opt.rev,
+    //     container_cmd: opt.cmd,
+    //     project: opt.project,
+    // };
+    // builder.run()?;
 }
 
 #[cfg(test)]

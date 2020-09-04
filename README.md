@@ -46,16 +46,21 @@ the `lambda-target` directory. There is also a `lambda-target/latest`
 file that contains the names of all the zip files written.
 
 ```
-aws-build [<project>] [--repo <repo>] [--rev <rev>] [--cmd <cmd>]
+aws-build [-C <directory>] [--container-cmd <container-cmd>] [--rust-version <rust-version>] [--bin <bin>] <command> [<args>]
 
-Build the project in a container for deployment to Lambda.
+Build the project in a container for deployment to AWS.
 
 Options:
-  --repo            lambda-rust repo (default:
-                    https://github.com/softprops/lambda-rust)
-  --rev             branch/tag/commit from which to build (default: master)
-  --cmd             container command (default: docker)
+  -C, --directory   change to DIRECTORY before doing anything
+  --container-cmd   container command (default: docker)
+  --rust-version    rust version (default: latest stable)
+  --bin             name of the binary target to build (required if there is
+                    more than one binary target)
   --help            display usage information
+
+Commands:
+  al2               Build an executable that can run on Amazon Linux 2.
+  lambda            Build a package for deployment to AWS Lambda.
 ```
 
 ## Related projects
