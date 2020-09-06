@@ -48,6 +48,15 @@ enum Command {
     Lambda(Lambda),
 }
 
+impl Command {
+    fn to_mode(&self) -> BuildMode {
+        match self {
+            Command::Al2(_) => BuildMode::AmazonLinux2,
+            Command::Lambda(_) => BuildMode::Lambda,
+        }
+    }
+}
+
 /// Build the project in a container for deployment to AWS.
 #[derive(Debug, FromArgs)]
 struct Opt {
@@ -81,7 +90,7 @@ fn main() {
     let builder = Builder {
         // TODO
         rust_version: opt.rust_version,
-        mode: BuildMode::Lambda,
+        mode: opt.command.to_mode(),
         bin: opt.bin,
         container_cmd: Path::new(&opt.container_cmd).into(),
         project: opt.directory,

@@ -131,7 +131,10 @@ impl Builder {
 
         // Build the container
         let from = match self.mode {
-            BuildMode::AmazonLinux2 => todo!(),
+            BuildMode::AmazonLinux2 => {
+                // https://hub.docker.com/_/amazonlinux
+                "amazonlinux:2"
+            }
             BuildMode::Lambda => {
                 // https://github.com/lambci/docker-lambda#documentation
                 "lambci/lambda:build-provided.al2"
