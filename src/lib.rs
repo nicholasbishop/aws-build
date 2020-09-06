@@ -69,17 +69,23 @@ fn write_container_files() -> TempDir {
     tmp_dir
 }
 
-/// Create the unique zip file name.
+/// Create a unique output file name.
 ///
 /// The file name is intended to be identifiable, sortable by time,
 /// unique, and reasonably short. To make this it includes:
 /// - executable name
 /// - year, month, and day
 /// - first 16 digits of the sha256 hex hash
-fn make_zip_name(name: &str, contents: &[u8], when: Date<Utc>) -> String {
+fn make_unique_name(
+    mode: BuildMode,
+    name: &str,
+    contents: &[u8],
+    when: Date<Utc>,
+) -> String {
     let hash = sha2::Sha256::digest(&contents);
     format!(
-        "{}-{}{:02}{:02}-{:.16x}.zip",
+        "{}-{}-{}{:02}{:02}-{:.16x}.zip",
+        mode.name(),
         name,
         when.year(),
         when.month(),
@@ -286,13 +292,17 @@ impl Builder {
                 // Zip the binary and give the zip a unique name so
                 // that multiple versions can be uploaded to S3
                 // without overwriting each other. The new name is
-                // "<exec-name>-<yyyymmdd>-<exec-hash>.zip".
+                // "lambda-<exec-name>-<yyyymmdd>-<exec-hash>.zip".
                 let contents = fs::read(&bin_path).context(format!(
                     "failed to read {}",
                     bin_path.display()
                 ))?;
-                let zip_name =
-                    make_zip_name(&bin, &contents, Utc::now().date());
+                let zip_name = make_unique_name(
+                    self.mode,
+                    &bin,
+                    &contents,
+                    Utc::now().date(),
+                );
                 let zip_path = target_dir.join(&zip_name);
 
                 // Create the zip file containing just a bootstrap
@@ -354,11 +364,16 @@ mod tests {
     use chrono::TimeZone;
 
     #[test]
-    fn test_zip_name() {
+    fn test_unique_name() {
         let when = Utc.ymd(2020, 8, 31);
         assert_eq!(
-            make_zip_name("testexecutable", "testcontents".as_bytes(), when),
-            "testexecutable-20200831-7097a82a108e78da.zip"
+            make_unique_name(
+                BuildMode::Lambda,
+                "testexecutable",
+                "testcontents".as_bytes(),
+                when
+            ),
+            "lambda-testexecutable-20200831-7097a82a108e78da.zip"
         );
     }
 }
