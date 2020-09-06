@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 use zip::ZipWriter;
 
-// TODO
+// Default rust verison to install.
 pub static DEFAULT_RUST_VERSION: &str = "stable";
 
 /// Default container command used to run the build.
@@ -85,7 +85,7 @@ fn make_zip_name(name: &str, contents: &[u8], when: Date<Utc>) -> String {
     )
 }
 
-// TODO
+/// Whether to build for Amazon Linux 2 or AWS Lambda.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum BuildMode {
     AmazonLinux2,
@@ -95,13 +95,15 @@ pub enum BuildMode {
 /// Options for running the build.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Builder {
-    // TODO
+    /// Rust version to install. Can be anything rustup understands as
+    /// a valid version, e.g. "stable" or "1.45.2".
     pub rust_version: String,
 
-    // TODO
+    /// Whether to build for Amazon Linux 2 or AWS Lambda.
     pub mode: BuildMode,
 
-    // TODO
+    /// Name of the binary target to build. Can be None if the project
+    /// only has one binary target.
     pub bin: Option<String>,
 
     /// Container command. Defaults to "docker", but "podman" should
