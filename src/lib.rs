@@ -103,6 +103,15 @@ pub enum BuildMode {
     Lambda,
 }
 
+impl BuildMode {
+    fn name(&self) -> &'static str {
+        match self {
+            BuildMode::AmazonLinux2 => "al2",
+            BuildMode::Lambda => "lambda",
+        }
+    }
+}
+
 /// Options for running the build.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Builder {
@@ -164,36 +173,11 @@ impl Builder {
             BuildMode::Lambda => "lambda",
         };
 
-        // Build the container
-        let from = match self.mode {
-            BuildMode::AmazonLinux2 => {
-                // https://hub.docker.com/_/amazonlinux
-                "amazonlinux:2"
-            }
-            BuildMode::Lambda => {
-                // https://github.com/lambci/docker-lambda#documentation
-                "lambci/lambda:build-provided.al2"
-            }
-        };
-        let image_tag =
-            format!("aws-build-{}-{}", mode_name, self.rust_version);
         let docker = Docker {
             sudo: false,
             program: self.container_cmd.clone(),
         };
-        // TODO
-        let tmp_dir = write_container_files()?;
-        docker
-            .build(BuildOpt {
-                build_args: vec![
-                    ("FROM_IMAGE".into(), from.into()),
-                    ("RUST_VERSION".into(), self.rust_version.clone()),
-                ],
-                context: tmp_dir.path().into(),
-                tag: Some(image_tag.clone()),
-                ..Default::default()
-            })
-            .run()?;
+        let image_tag = self.build_container(&docker)?;
 
         // Create two cache directories to speed up rebuilds. These are
         // host mounts rather than volumes so that the permissions aren't
@@ -300,6 +284,36 @@ impl Builder {
         fs::write(latest_path, zip_names.join("\n") + "\n")?;
 
         zip_paths
+    }
+
+    #[throws]
+    fn build_container(&self, docker: &Docker) -> String {
+        // Build the container
+        let from = match self.mode {
+            BuildMode::AmazonLinux2 => {
+                // https://hub.docker.com/_/amazonlinux
+                "amazonlinux:2"
+            }
+            BuildMode::Lambda => {
+                // https://github.com/lambci/docker-lambda#documentation
+                "lambci/lambda:build-provided.al2"
+            }
+        };
+        let image_tag =
+            format!("aws-build-{}-{}", self.mode.name(), self.rust_version);
+        let tmp_dir = write_container_files()?;
+        docker
+            .build(BuildOpt {
+                build_args: vec![
+                    ("FROM_IMAGE".into(), from.into()),
+                    ("RUST_VERSION".into(), self.rust_version.clone()),
+                ],
+                context: tmp_dir.path().into(),
+                tag: Some(image_tag.clone()),
+                ..Default::default()
+            })
+            .run()?;
+        image_tag
     }
 }
 
