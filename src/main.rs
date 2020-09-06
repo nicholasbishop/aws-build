@@ -31,14 +31,18 @@ static LOGGER: Logger = Logger;
 #[derive(Debug, FromArgs)]
 #[argh(subcommand, name = "al2")]
 struct Al2 {
-    // TODO
+    /// path of the project to build (default: current directory)
+    #[argh(positional, default = "env::current_dir().unwrap()")]
+    project: PathBuf,
 }
 
 /// Build a package for deployment to AWS Lambda.
 #[derive(Debug, FromArgs)]
 #[argh(subcommand, name = "lambda")]
 struct Lambda {
-    // TODO
+    /// path of the project to build (default: current directory)
+    #[argh(positional, default = "env::current_dir().unwrap()")]
+    project: PathBuf,
 }
 
 #[derive(Debug, FromArgs)]
@@ -55,15 +59,18 @@ impl Command {
             Command::Lambda(_) => BuildMode::Lambda,
         }
     }
+
+    fn project(&self) -> &Path {
+        match self {
+            Command::Al2(opt) => &opt.project,
+            Command::Lambda(opt) => &opt.project,
+        }
+    }
 }
 
 /// Build the project in a container for deployment to AWS.
 #[derive(Debug, FromArgs)]
 struct Opt {
-    /// change to DIRECTORY before doing anything
-    #[argh(option, short = 'C', default = "env::current_dir().unwrap()")]
-    directory: PathBuf,
-
     /// container command (default: docker)
     #[argh(option, default = "DEFAULT_CONTAINER_CMD.into()")]
     container_cmd: String,
@@ -93,7 +100,7 @@ fn main() {
         mode: opt.command.to_mode(),
         bin: opt.bin,
         container_cmd: Path::new(&opt.container_cmd).into(),
-        project: opt.directory,
+        project: opt.command.project().into(),
     };
     builder.run()?;
 }

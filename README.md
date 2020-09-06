@@ -46,12 +46,11 @@ the `lambda-target` directory. There is also a `lambda-target/latest`
 file that contains the names of all the zip files written.
 
 ```
-aws-build [-C <directory>] [--container-cmd <container-cmd>] [--rust-version <rust-version>] [--bin <bin>] <command> [<args>]
+aws-build [--container-cmd <container-cmd>] [--rust-version <rust-version>] [--bin <bin>] <command> [<args>]
 
 Build the project in a container for deployment to AWS.
 
 Options:
-  -C, --directory   change to DIRECTORY before doing anything
   --container-cmd   container command (default: docker)
   --rust-version    rust version (default: latest stable)
   --bin             name of the binary target to build (required if there is
