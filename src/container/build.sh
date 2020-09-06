@@ -1,6 +1,6 @@
 #!/bin/sh
 
-set -eux
+set -eu
 
 export CARGO_HOME="/cargo"
 export RUSTUP_HOME="/rustup"
