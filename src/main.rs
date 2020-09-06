@@ -95,7 +95,6 @@ fn main() {
 
     let opt: Opt = argh::from_env();
     let builder = Builder {
-        // TODO
         rust_version: opt.rust_version,
         mode: opt.command.to_mode(),
         bin: opt.bin,

@@ -42,6 +42,28 @@ fn get_package_binaries(path: &Path) -> Vec<String> {
     names
 }
 
+/// Write `contents` to `path`.
+///
+/// This adds the path as context to the error.
+#[throws]
+fn write_file(path: &Path, contents: &str) {
+    fs::write(path, contents)
+        .context(format!("failed to write to {}", path.display()))?;
+}
+
+#[throws]
+fn write_container_files() -> TempDir {
+    let tmp_dir = TempDir::new()?;
+
+    let dockerfile = include_str!("container/Dockerfile");
+    write_file(&tmp_dir.path().join("Dockerfile"), dockerfile)?;
+
+    let build_script = include_str!("container/build.sh");
+    write_file(&tmp_dir.path().join("build.sh"), build_script)?;
+
+    tmp_dir
+}
+
 /// Create the unique zip file name.
 ///
 /// The file name is intended to be identifiable, sortable by time,
@@ -142,16 +164,12 @@ impl Builder {
         };
         let image_tag =
             format!("aws-build-{}-{}", mode_name, self.rust_version);
-        let tmp_dir = TempDir::new()?;
         let docker = Docker {
             sudo: false,
             program: self.container_cmd.clone(),
         };
         // TODO
-        let dockerfile = include_str!("container/Dockerfile");
-        fs::write(tmp_dir.path().join("Dockerfile"), dockerfile)?;
-        let build_script = include_str!("container/build.sh");
-        fs::write(tmp_dir.path().join("build.sh"), build_script)?;
+        let tmp_dir = write_container_files()?;
         docker
             .build(BuildOpt {
                 build_args: vec![
