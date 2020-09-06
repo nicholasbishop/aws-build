@@ -296,6 +296,7 @@ impl Builder {
                 // each other.
                 let out_path = target_dir.join(base_unique_name);
                 fs::copy(bin_path, &out_path)?;
+                info!("writing {}", out_path.display());
                 out_path
             }
             BuildMode::Lambda => {
