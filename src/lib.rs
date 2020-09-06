@@ -1,25 +1,19 @@
-mod command;
-mod docker;
-mod git;
-
 use anyhow::{anyhow, Context, Error};
 use cargo_metadata::MetadataCommand;
 use chrono::{Date, Datelike, Utc};
-use docker::{Docker, Volume};
+use docker_command::{BuildOpt, Docker, RunOpt, User, Volume};
 use fehler::{throw, throws};
-use git::Repo;
 use log::info;
 use sha2::Digest;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use tempfile::TempDir;
 use zip::ZipWriter;
 
-/// Default lambda-rust repo URL.
-pub static DEFAULT_REPO: &str = "https://github.com/softprops/lambda-rust";
-/// Default revision of the lambda-rust repo to use. Can be a branch,
-/// tag, or commit hash.
-pub static DEFAULT_REV: &str = "master";
+// TODO
+pub static DEFAULT_RUST_VERSION: &str = "stable";
+
 /// Default container command used to run the build.
 pub static DEFAULT_CONTAINER_CMD: &str = "docker";
 
@@ -69,35 +63,46 @@ fn make_zip_name(name: &str, contents: &[u8], when: Date<Utc>) -> String {
     )
 }
 
+// TODO
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum BuildMode {
+    AmazonLinux2,
+    Lambda,
+}
+
 /// Options for running the build.
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct LambdaBuilder {
-    /// The lambda-rust repo URL.
-    pub repo: String,
+pub struct Builder {
+    // TODO
+    pub rust_version: String,
 
-    /// Branch/tag/commit from which to build.
-    pub rev: String,
+    // TODO
+    pub mode: BuildMode,
+
+    // TODO
+    pub bin: Option<String>,
 
     /// Container command. Defaults to "docker", but "podman" should
     /// work as well.
-    pub container_cmd: String,
+    pub container_cmd: PathBuf,
 
     /// Path of the project to build.
     pub project: PathBuf,
 }
 
-impl Default for LambdaBuilder {
+impl Default for Builder {
     fn default() -> Self {
-        LambdaBuilder {
-            repo: DEFAULT_REPO.into(),
-            rev: DEFAULT_REV.into(),
+        Builder {
+            rust_version: DEFAULT_RUST_VERSION.into(),
+            mode: BuildMode::AmazonLinux2,
+            bin: None,
             container_cmd: DEFAULT_CONTAINER_CMD.into(),
             project: PathBuf::default(),
         }
     }
 }
 
-impl LambdaBuilder {
+impl Builder {
     /// Run the build in a container.
     ///
     /// This will produce zip files ready for use with AWS Lambda in
@@ -115,80 +120,115 @@ impl LambdaBuilder {
             self.project.display(),
         ))?;
 
-        // Ensure that the target directory exists. The output directory
-        // ("lambda-target") is mounted to /code/target in the container,
-        // but we mount /code from the host read-only, so the target
-        // subdirectory needs to already exist. Usually the "target"
-        // directory will already exist on the host, but won't if "cargo
-        // test" or similar hasn't been run yet.
-        ensure_dir_exists(&project_path.join("target"))?;
+        // Ensure that the target directory exists
+        let target_dir = project_path.join("target");
+        ensure_dir_exists(&target_dir)?;
 
-        // Create the output directory if it doesn't already exist.
-        let output_dir = project_path.join("lambda-target");
-        ensure_dir_exists(&output_dir)?;
-
-        let repo_url = &self.repo;
-        let repo = Repo::new(output_dir.join("lambda-rust"));
-        ensure_dir_exists(&repo.path)?;
-
-        if !repo.path.join(".git").exists() {
-            // Clone the repo if it doesn't exist
-            repo.clone(repo_url)?;
-        } else {
-            // Ensure the remote is set correctly
-            repo.remote_set_url(repo_url)?;
-            // Fetch updates
-            repo.fetch()?;
+        let mode_name = match self.mode {
+            BuildMode::AmazonLinux2 => "al2",
+            BuildMode::Lambda => "lambda",
         };
 
-        // Check out the specified revision.
-        repo.checkout(&self.rev)?;
-
         // Build the container
-        let image_tag = format!("aws-build-{:.16}", repo.rev_parse("HEAD")?);
-        let docker = Docker::new(self.container_cmd.clone());
-        docker.build(&repo.path, &image_tag)?;
+        let from = match self.mode {
+            BuildMode::AmazonLinux2 => todo!(),
+            BuildMode::Lambda => {
+                // https://github.com/lambci/docker-lambda#documentation
+                "lambci/lambda:build-provided.al2"
+            }
+        };
+        let image_tag =
+            format!("aws-build-{}-{}", mode_name, self.rust_version);
+        let tmp_dir = TempDir::new()?;
+        let docker = Docker {
+            sudo: false,
+            program: self.container_cmd.clone(),
+        };
+        // TODO
+        let dockerfile = include_str!("container/Dockerfile");
+        fs::write(tmp_dir.path().join("Dockerfile"), dockerfile)?;
+        let build_script = include_str!("container/build.sh");
+        fs::write(tmp_dir.path().join("build.sh"), build_script)?;
+        docker
+            .build(BuildOpt {
+                build_args: vec![
+                    ("FROM_IMAGE".into(), from.into()),
+                    ("RUST_VERSION".into(), self.rust_version.clone()),
+                ],
+                context: tmp_dir.path().into(),
+                tag: Some(image_tag.clone()),
+                ..Default::default()
+            })
+            .run()?;
 
         // Create two cache directories to speed up rebuilds. These are
         // host mounts rather than volumes so that the permissions aren't
         // set to root only.
-        let registry_dir = output_dir.join("cargo-registry");
+        let registry_dir =
+            target_dir.join(format!("{}-cargo-registry", mode_name));
         ensure_dir_exists(&registry_dir)?;
-        let git_dir = output_dir.join("cargo-git");
+        let git_dir = target_dir.join(format!("{}-cargo-git", mode_name));
         ensure_dir_exists(&git_dir)?;
-
-        // Run the container
-        docker.run(
-            &[
-                // Mount the project directory
-                Volume {
-                    src: project_path.clone(),
-                    dst: Path::new("/code").into(),
-                    read_only: true,
-                },
-                // Mount two cargo directories to make rebuilds faster
-                Volume {
-                    src: registry_dir,
-                    dst: Path::new("/cargo/registry").into(),
-                    read_only: false,
-                },
-                Volume {
-                    src: git_dir,
-                    dst: Path::new("/cargo/git").into(),
-                    read_only: false,
-                },
-                // Mount the output target directory
-                Volume {
-                    src: output_dir.clone(),
-                    dst: Path::new("/code/target").into(),
-                    read_only: false,
-                },
-            ],
-            &image_tag,
-        )?;
 
         // Get the binary target names.
         let binaries = get_package_binaries(&project_path)?;
+
+        // TODO
+        let bin: String = if let Some(bin) = &self.bin {
+            bin.clone()
+        } else if binaries.len() == 1 {
+            binaries[0].clone()
+        } else {
+            throw!(anyhow!(
+                "must specify bin target when package has more than one"
+            ));
+        };
+
+        // Run the container
+        docker
+            .run(RunOpt {
+                remove: true,
+                env: vec![
+                    (
+                        "TARGET_DIR".into(),
+                        Path::new("/code/target").join(mode_name).into(),
+                    ),
+                    ("BIN_TARGET".into(), bin.into()),
+                ],
+                init: true,
+                user: Some(User::current()),
+                volumes: vec![
+                    // Mount the project directory
+                    Volume {
+                        src: project_path,
+                        dst: Path::new("/code").into(),
+                        ..Default::default()
+                    },
+                    // Mount two cargo directories to make rebuilds faster
+                    Volume {
+                        src: registry_dir,
+                        dst: Path::new("/cargo/registry").into(),
+                        read_write: true,
+                        ..Default::default()
+                    },
+                    Volume {
+                        src: git_dir,
+                        dst: Path::new("/cargo/git").into(),
+                        read_write: true,
+                        ..Default::default()
+                    },
+                    // Mount the output target directory
+                    Volume {
+                        src: target_dir.clone(),
+                        dst: Path::new("/code/target").into(),
+                        read_write: true,
+                        ..Default::default()
+                    },
+                ],
+                image: image_tag,
+                ..Default::default()
+            })
+            .run()?;
 
         // Zip each binary and give the zip a unique name. The lambda-rust
         // build already zips the binaries, but the name is just the
@@ -199,11 +239,11 @@ impl LambdaBuilder {
         let mut zip_names = Vec::new();
         let mut zip_paths = Vec::new();
         for name in binaries {
-            let src = output_dir.join("lambda/release").join(&name);
+            let src = target_dir.join("lambda/release").join(&name);
             let contents = fs::read(&src)
                 .context(format!("failed to read {}", src.display()))?;
             let dst_name = make_zip_name(&name, &contents, Utc::now().date());
-            let dst = output_dir.join(&dst_name);
+            let dst = target_dir.join(&dst_name);
             zip_names.push(dst_name);
             zip_paths.push(dst.clone());
 
@@ -221,7 +261,7 @@ impl LambdaBuilder {
             zip.finish()?;
         }
 
-        let latest_path = output_dir.join("latest");
+        let latest_path = target_dir.join("latest");
         info!("writing {}", latest_path.display());
         fs::write(latest_path, zip_names.join("\n") + "\n")?;
 

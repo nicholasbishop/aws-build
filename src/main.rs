@@ -1,9 +1,11 @@
 use anyhow::Error;
 use argh::FromArgs;
-use aws_build::{LambdaBuilder, DEFAULT_CONTAINER_CMD};
+use aws_build::{
+    BuildMode, Builder, DEFAULT_CONTAINER_CMD, DEFAULT_RUST_VERSION,
+};
 use fehler::throws;
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use log::{Level, Metadata, Record};
 
@@ -58,8 +60,8 @@ struct Opt {
     container_cmd: String,
 
     /// rust version (default: latest stable)
-    #[argh(option)]
-    rust_version: Option<String>,
+    #[argh(option, default = "DEFAULT_RUST_VERSION.into()")]
+    rust_version: String,
 
     /// name of the binary target to build (required if there is more
     /// than one binary target)
@@ -76,13 +78,15 @@ fn main() {
         .map(|()| log::set_max_level(log::LevelFilter::Info))?;
 
     let opt: Opt = argh::from_env();
-    // let builder = LambdaBuilder {
-    //     repo: opt.repo,
-    //     rev: opt.rev,
-    //     container_cmd: opt.cmd,
-    //     project: opt.project,
-    // };
-    // builder.run()?;
+    let builder = Builder {
+        // TODO
+        rust_version: opt.rust_version,
+        mode: BuildMode::Lambda,
+        bin: opt.bin,
+        container_cmd: Path::new(&opt.container_cmd).into(),
+        project: opt.directory,
+    };
+    builder.run()?;
 }
 
 #[cfg(test)]
