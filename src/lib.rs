@@ -90,6 +90,83 @@ fn make_zip_name(name: &str, contents: &[u8], when: Date<Utc>) -> String {
     )
 }
 
+struct Container<'a> {
+    mode: BuildMode,
+    bin: &'a String,
+    docker: &'a Docker,
+    project_path: &'a Path,
+    target_dir: &'a Path,
+    image_tag: &'a str,
+}
+
+impl<'a> Container<'a> {
+    #[throws]
+    fn run(&self) -> PathBuf {
+        let mode_name = self.mode.name();
+
+        // Create two cache directories to speed up rebuilds. These are
+        // host mounts rather than volumes so that the permissions aren't
+        // set to root only.
+        let registry_dir = self
+            .target_dir
+            .join(format!("{}-cargo-registry", mode_name));
+        ensure_dir_exists(&registry_dir)?;
+        let git_dir = self.target_dir.join(format!("{}-cargo-git", mode_name));
+        ensure_dir_exists(&git_dir)?;
+
+        self.docker
+            .run(RunOpt {
+                remove: true,
+                env: vec![
+                    (
+                        "TARGET_DIR".into(),
+                        Path::new("/code/target").join(mode_name).into(),
+                    ),
+                    ("BIN_TARGET".into(), self.bin.into()),
+                ],
+                init: true,
+                user: Some(User::current()),
+                volumes: vec![
+                    // Mount the project directory
+                    Volume {
+                        src: self.project_path.into(),
+                        dst: Path::new("/code").into(),
+                        ..Default::default()
+                    },
+                    // Mount two cargo directories to make rebuilds faster
+                    Volume {
+                        src: registry_dir,
+                        dst: Path::new("/cargo/registry").into(),
+                        read_write: true,
+                        ..Default::default()
+                    },
+                    Volume {
+                        src: git_dir,
+                        dst: Path::new("/cargo/git").into(),
+                        read_write: true,
+                        ..Default::default()
+                    },
+                    // Mount the output target directory
+                    Volume {
+                        src: self.target_dir.into(),
+                        dst: Path::new("/code/target").into(),
+                        read_write: true,
+                        ..Default::default()
+                    },
+                ],
+                image: self.image_tag.into(),
+                ..Default::default()
+            })
+            .run()?;
+
+        // Return the path of the binary that was built
+        self.target_dir
+            .join(mode_name)
+            .join("release")
+            .join(self.bin)
+    }
+}
+
 /// Whether to build for Amazon Linux 2 or AWS Lambda.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum BuildMode {
@@ -174,10 +251,30 @@ impl Builder {
         };
         let image_tag = self.build_container(&docker)?;
 
-        // Get the binary target names.
+        // Get the binary target names
         let binaries = get_package_binaries(&project_path)?;
 
-        self.run_container(&docker, &project_path, &target_dir, &image_tag)?;
+        // Get the name of the binary target to build
+        let bin: String = if let Some(bin) = &self.bin {
+            bin.clone()
+        } else if binaries.len() == 1 {
+            binaries[0].clone()
+        } else {
+            throw!(anyhow!(
+                "must specify bin target when package has more than one"
+            ));
+        };
+
+        // Build the project in a container
+        let container = Container {
+            mode: self.mode,
+            docker: &docker,
+            project_path: &project_path,
+            target_dir: &target_dir,
+            image_tag: &image_tag,
+            bin: &bin,
+        };
+        container.run()?;
 
         // Zip each binary and give the zip a unique name. The lambda-rust
         // build already zips the binaries, but the name is just the
@@ -245,88 +342,6 @@ impl Builder {
             })
             .run()?;
         image_tag
-    }
-
-    #[throws]
-    fn run_container(
-        &self,
-        docker: &Docker,
-        project_path: &Path,
-        target_dir: &Path,
-        image_tag: &str,
-    ) -> PathBuf {
-        // Get the binary target names
-        let binaries = get_package_binaries(&project_path)?;
-
-        // Get the name of the binary target to build
-        let bin: String = if let Some(bin) = &self.bin {
-            bin.clone()
-        } else if binaries.len() == 1 {
-            binaries[0].clone()
-        } else {
-            throw!(anyhow!(
-                "must specify bin target when package has more than one"
-            ));
-        };
-
-        let mode_name = self.mode.name();
-
-        // Create two cache directories to speed up rebuilds. These are
-        // host mounts rather than volumes so that the permissions aren't
-        // set to root only.
-        let registry_dir =
-            target_dir.join(format!("{}-cargo-registry", mode_name));
-        ensure_dir_exists(&registry_dir)?;
-        let git_dir = target_dir.join(format!("{}-cargo-git", mode_name));
-        ensure_dir_exists(&git_dir)?;
-
-        docker
-            .run(RunOpt {
-                remove: true,
-                env: vec![
-                    (
-                        "TARGET_DIR".into(),
-                        Path::new("/code/target").join(mode_name).into(),
-                    ),
-                    ("BIN_TARGET".into(), bin.clone().into()),
-                ],
-                init: true,
-                user: Some(User::current()),
-                volumes: vec![
-                    // Mount the project directory
-                    Volume {
-                        src: project_path.into(),
-                        dst: Path::new("/code").into(),
-                        ..Default::default()
-                    },
-                    // Mount two cargo directories to make rebuilds faster
-                    Volume {
-                        src: registry_dir,
-                        dst: Path::new("/cargo/registry").into(),
-                        read_write: true,
-                        ..Default::default()
-                    },
-                    Volume {
-                        src: git_dir,
-                        dst: Path::new("/cargo/git").into(),
-                        read_write: true,
-                        ..Default::default()
-                    },
-                    // Mount the output target directory
-                    Volume {
-                        src: target_dir.into(),
-                        dst: Path::new("/code/target").into(),
-                        read_write: true,
-                        ..Default::default()
-                    },
-                ],
-                image: image_tag.into(),
-                ..Default::default()
-            })
-            .run()?;
-
-        // Return the path of the binary that was built
-        target_dir.join(mode_name).join("release").join(bin)
     }
 }
 
