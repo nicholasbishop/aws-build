@@ -73,6 +73,7 @@ fn write_container_files() -> TempDir {
 ///
 /// The file name is intended to be identifiable, sortable by time,
 /// unique, and reasonably short. To make this it includes:
+/// - build-mode prefix (al2 or lambda)
 /// - executable name
 /// - year, month, and day
 /// - first 16 digits of the sha256 hex hash
@@ -84,7 +85,7 @@ fn make_unique_name(
 ) -> String {
     let hash = sha2::Sha256::digest(&contents);
     format!(
-        "{}-{}-{}{:02}{:02}-{:.16x}.zip",
+        "{}-{}-{}{:02}{:02}-{:.16x}",
         mode.name(),
         name,
         when.year(),
@@ -283,26 +284,25 @@ impl Builder {
         };
         let bin_path = container.run()?;
 
+        let bin_contents = fs::read(&bin_path)
+            .context(format!("failed to read {}", bin_path.display()))?;
+        let base_unique_name =
+            make_unique_name(self.mode, &bin, &bin_contents, Utc::now().date());
+
         match self.mode {
             BuildMode::AmazonLinux2 => {
-                // TODO: make unique name similar to lambda
-                bin_path
+                // Give the binary a unique name so that multiple
+                // versions can be uploaded to S3 without overwriting
+                // each other.
+                let out_path = target_dir.join(base_unique_name);
+                fs::copy(bin_path, &out_path)?;
+                out_path
             }
             BuildMode::Lambda => {
                 // Zip the binary and give the zip a unique name so
                 // that multiple versions can be uploaded to S3
-                // without overwriting each other. The new name is
-                // "lambda-<exec-name>-<yyyymmdd>-<exec-hash>.zip".
-                let contents = fs::read(&bin_path).context(format!(
-                    "failed to read {}",
-                    bin_path.display()
-                ))?;
-                let zip_name = make_unique_name(
-                    self.mode,
-                    &bin,
-                    &contents,
-                    Utc::now().date(),
-                );
+                // without overwriting each other.
+                let zip_name = base_unique_name + ".zip";
                 let zip_path = target_dir.join(&zip_name);
 
                 // Create the zip file containing just a bootstrap
@@ -316,7 +316,7 @@ impl Builder {
                 let options = zip::write::FileOptions::default()
                     .compression_method(zip::CompressionMethod::Deflated);
                 zip.start_file("bootstrap", options)?;
-                zip.write_all(&contents)?;
+                zip.write_all(&bin_contents)?;
 
                 zip.finish()?;
 
@@ -373,7 +373,7 @@ mod tests {
                 "testcontents".as_bytes(),
                 when
             ),
-            "lambda-testexecutable-20200831-7097a82a108e78da.zip"
+            "lambda-testexecutable-20200831-7097a82a108e78da"
         );
     }
 }
