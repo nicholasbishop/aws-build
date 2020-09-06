@@ -232,8 +232,9 @@ impl Builder {
     /// list of the latest zip names.
     ///
     /// Returns the full paths of each zip file.
+    /// TODO update this doc
     #[throws]
-    pub fn run(&self) -> Vec<PathBuf> {
+    pub fn run(&self) -> PathBuf {
         // Canonicalize the project path. This is necessary for when it's
         // passed as a Docker volume arg.
         let project_path = self.project.canonicalize().context(format!(
@@ -274,44 +275,46 @@ impl Builder {
             image_tag: &image_tag,
             bin: &bin,
         };
-        container.run()?;
+        let bin_path = container.run()?;
 
-        // Zip each binary and give the zip a unique name. The lambda-rust
-        // build already zips the binaries, but the name is just the
-        // binary name. It's helpful to have a more specific name so that
-        // multiple versions can be uploaded to S3 without overwriting
-        // each other. The new name is
-        // "<exec-name>-<yyyymmdd>-<exec-hash>.zip".
-        let mut zip_names = Vec::new();
-        let mut zip_paths = Vec::new();
-        for name in binaries {
-            let src = target_dir.join("lambda/release").join(&name);
-            let contents = fs::read(&src)
-                .context(format!("failed to read {}", src.display()))?;
-            let dst_name = make_zip_name(&name, &contents, Utc::now().date());
-            let dst = target_dir.join(&dst_name);
-            zip_names.push(dst_name);
-            zip_paths.push(dst.clone());
+        match self.mode {
+            BuildMode::AmazonLinux2 => {
+                // TODO: make unique name similar to lambda
+                bin_path
+            }
+            BuildMode::Lambda => {
+                // Zip the binary and give the zip a unique name so
+                // that multiple versions can be uploaded to S3
+                // without overwriting each other. The new name is
+                // "<exec-name>-<yyyymmdd>-<exec-hash>.zip".
+                let contents = fs::read(&bin_path).context(format!(
+                    "failed to read {}",
+                    bin_path.display()
+                ))?;
+                let zip_name =
+                    make_zip_name(&bin, &contents, Utc::now().date());
+                let zip_path = target_dir.join(&zip_name);
 
-            // Create the zip file containing just a bootstrap file (the
-            // executable)
-            info!("writing {}", dst.display());
-            let file = fs::File::create(&dst)
-                .context(format!("failed to create {}", dst.display()))?;
-            let mut zip = ZipWriter::new(file);
-            let options = zip::write::FileOptions::default()
-                .compression_method(zip::CompressionMethod::Deflated);
-            zip.start_file("bootstrap", options)?;
-            zip.write_all(&contents)?;
+                // Create the zip file containing just a bootstrap
+                // file (the executable)
+                info!("writing {}", zip_path.display());
+                let file = fs::File::create(&zip_path).context(format!(
+                    "failed to create {}",
+                    zip_path.display()
+                ))?;
+                let mut zip = ZipWriter::new(file);
+                let options = zip::write::FileOptions::default()
+                    .compression_method(zip::CompressionMethod::Deflated);
+                zip.start_file("bootstrap", options)?;
+                zip.write_all(&contents)?;
 
-            zip.finish()?;
+                zip.finish()?;
+
+                zip_path
+            }
         }
 
-        let latest_path = target_dir.join("latest");
-        info!("writing {}", latest_path.display());
-        fs::write(latest_path, zip_names.join("\n") + "\n")?;
-
-        zip_paths
+        // TODO: latest symlinks (one for al2 and one for lambda)
     }
 
     #[throws]
