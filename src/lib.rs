@@ -1,3 +1,8 @@
+#![deny(missing_docs)]
+
+//! Build a Rust project in a container for deployment to either
+//! Amazon Linux 2 or AWS Lambda.
+
 use anyhow::{anyhow, Context, Error};
 use cargo_metadata::MetadataCommand;
 use chrono::{Date, Datelike, Utc};
@@ -11,7 +16,7 @@ use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 use zip::ZipWriter;
 
-// Default rust verison to install.
+/// Default rust verison to install.
 pub static DEFAULT_RUST_VERSION: &str = "stable";
 
 /// Default container command used to run the build.
@@ -88,7 +93,13 @@ fn make_zip_name(name: &str, contents: &[u8], when: Date<Utc>) -> String {
 /// Whether to build for Amazon Linux 2 or AWS Lambda.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum BuildMode {
+    /// Build for Amazon Linux 2. The result is a standalone binary
+    /// that can be copied to (e.g) an EC2 instance running Amazon
+    /// Linux 2.
     AmazonLinux2,
+
+    /// Build for AWS Lambda running Amazon Linux 2. The result is a
+    /// zip file containing a single "bootstrap" executable.
     Lambda,
 }
 
