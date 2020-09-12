@@ -25,10 +25,11 @@ In the common case you should be able to just run `aws-build al2` or
 `aws-build lambda` in the directory of the project you want to
 build.
 
-On successful completion, the output (either a standalone executable
-for Amazon Linux 2, or a zip file containing a "bootstrap" executable
-for AWS Lambda) to a subdirectory of the `target` directory. There is
-also a `target/latest-al2` or `target/latest-lambda` symlink that points to the output file.
+On successful completion, the output file (either a standalone executable
+for Amazon Linux 2 or a zip file containing a "bootstrap" executable
+for AWS Lambda) is written to a subdirectory of the `target`
+directory. There is also a `target/latest-al2` or
+`target/latest-lambda` symlink that points to the output file.
 
 ```
 aws-build <mode> [<project>] [--container-cmd <container-cmd>] [--rust-version <rust-version>] [--strip] [--bin <bin>]
