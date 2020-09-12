@@ -104,6 +104,15 @@ fn make_unique_name(
     )
 }
 
+/// Run the strip command to remove symbols and decrease the size.
+#[throws]
+fn strip(path: &Path) {
+    let mut cmd = Command::new("strip");
+    cmd.add_arg(path);
+    set_up_command(&mut cmd);
+    cmd.run()?;
+}
+
 struct Container<'a> {
     mode: BuildMode,
     bin: &'a String,
@@ -217,6 +226,9 @@ pub struct Builder {
     /// only has one binary target.
     pub bin: Option<String>,
 
+    /// Strip the binary.
+    pub strip: bool,
+
     /// Container command. Defaults to "docker", but "podman" should
     /// work as well.
     pub container_cmd: PathBuf,
@@ -231,6 +243,7 @@ impl Default for Builder {
             rust_version: DEFAULT_RUST_VERSION.into(),
             mode: BuildMode::AmazonLinux2,
             bin: None,
+            strip: false,
             container_cmd: DEFAULT_CONTAINER_CMD.into(),
             project: PathBuf::default(),
         }
@@ -291,6 +304,11 @@ impl Builder {
             bin: &bin,
         };
         let bin_path = container.run()?;
+
+        // Optionally strip symbols
+        if self.strip {
+            strip(&bin_path)?;
+        }
 
         let bin_contents = fs::read(&bin_path)
             .context(format!("failed to read {}", bin_path.display()))?;

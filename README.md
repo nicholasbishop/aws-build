@@ -30,13 +30,14 @@ for AWS Lambda) to a subdirectory of the `target` directory. There is
 also a `target/latest-al2` or `target/latest-lambda` symlink that points to the output file.
 
 ```
-aws-build [--container-cmd <container-cmd>] [--rust-version <rust-version>] [--bin <bin>] <command> [<args>]
+aws-build [--container-cmd <container-cmd>] [--rust-version <rust-version>] [--strip] [--bin <bin>] <command> [<args>]
 
 Build the project in a container for deployment to AWS.
 
 Options:
   --container-cmd   container command (default: docker)
   --rust-version    rust version (default: latest stable)
+  --strip           strip debug symbols
   --bin             name of the binary target to build (required if there is
                     more than one binary target)
   --help            display usage information

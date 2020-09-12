@@ -79,6 +79,10 @@ struct Opt {
     #[argh(option, default = "DEFAULT_RUST_VERSION.into()")]
     rust_version: String,
 
+    /// strip debug symbols
+    #[argh(switch)]
+    strip: bool,
+
     /// name of the binary target to build (required if there is more
     /// than one binary target)
     #[argh(option)]
@@ -98,6 +102,7 @@ fn main() {
         rust_version: opt.rust_version,
         mode: opt.command.to_mode(),
         bin: opt.bin,
+        strip: opt.strip,
         container_cmd: Path::new(&opt.container_cmd).into(),
         project: opt.command.project().into(),
     };
