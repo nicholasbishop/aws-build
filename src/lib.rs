@@ -296,12 +296,13 @@ impl Builder {
         let base_unique_name =
             make_unique_name(self.mode, &bin, &bin_contents, Utc::now().date());
 
-        match self.mode {
+        let out_path = match self.mode {
             BuildMode::AmazonLinux2 => {
                 // Give the binary a unique name so that multiple
                 // versions can be uploaded to S3 without overwriting
                 // each other.
-                let out_path = target_dir.join(base_unique_name);
+                let out_path =
+                    target_dir.join(self.mode.name()).join(base_unique_name);
                 fs::copy(bin_path, &out_path)?;
                 info!("writing {}", out_path.display());
                 out_path
@@ -311,7 +312,8 @@ impl Builder {
                 // that multiple versions can be uploaded to S3
                 // without overwriting each other.
                 let zip_name = base_unique_name + ".zip";
-                let zip_path = target_dir.join(&zip_name);
+                let zip_path =
+                    target_dir.join(self.mode.name()).join(&zip_name);
 
                 // Create the zip file containing just a bootstrap
                 // file (the executable)
@@ -330,9 +332,18 @@ impl Builder {
 
                 zip_path
             }
-        }
+        };
 
-        // TODO: latest symlinks (one for al2 and one for lambda)
+        // Create a symlink pointing to the output file. Either
+        // "target/latest-al2" or "target/latest-lambda"
+        let symlink_path =
+            target_dir.join(format!("latest-{}", self.mode.name()));
+        // Remove the symlink if it already exists, but ignore an
+        // error in case it doesn't exist.
+        let _ = fs::remove_file(&symlink_path);
+        std::os::unix::fs::symlink(&out_path, &symlink_path)?;
+
+        out_path
     }
 
     #[throws]
