@@ -7,7 +7,7 @@ edition = "2018"
 description = "Build Rust crates for deployment to AWS EC2 or AWS Lambda"
 keywords = ["aws", "lambda", "docker", "container", "build", "ec2"]
 license = "Apache-2.0"
-readme = "README.md"
+readme = "../README.md"
 repository = "https://github.com/nicholasbishop/aws-build"
 
 [dependencies]
