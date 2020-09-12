@@ -212,6 +212,21 @@ impl BuildMode {
     }
 }
 
+impl std::str::FromStr for BuildMode {
+    type Err = Error;
+
+    #[throws]
+    fn from_str(s: &str) -> Self {
+        if s == "al2" {
+            Self::AmazonLinux2
+        } else if s == "lambda" {
+            Self::Lambda
+        } else {
+            throw!(anyhow!("invalid mode {}", s));
+        }
+    }
+}
+
 /// Options for running the build.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Builder {

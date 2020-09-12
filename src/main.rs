@@ -46,30 +46,11 @@ struct Lambda {
 }
 
 #[derive(Debug, FromArgs)]
-#[argh(subcommand)]
-enum Command {
-    Al2(Al2),
-    Lambda(Lambda),
-}
+#[argh(description = "Build the project in a container for deployment to AWS.
 
-impl Command {
-    fn to_mode(&self) -> BuildMode {
-        match self {
-            Command::Al2(_) => BuildMode::AmazonLinux2,
-            Command::Lambda(_) => BuildMode::Lambda,
-        }
-    }
-
-    fn project(&self) -> &Path {
-        match self {
-            Command::Al2(opt) => &opt.project,
-            Command::Lambda(opt) => &opt.project,
-        }
-    }
-}
-
-/// Build the project in a container for deployment to AWS.
-#[derive(Debug, FromArgs)]
+mode: al2 or lambda (for Amazon Linux 2 or AWS Lambda, respectively)
+project: path of the project to build (default: current directory)
+")]
 struct Opt {
     /// container command (default: docker)
     #[argh(option, default = "DEFAULT_CONTAINER_CMD.into()")]
@@ -88,8 +69,13 @@ struct Opt {
     #[argh(option)]
     bin: Option<String>,
 
-    #[argh(subcommand)]
-    command: Command,
+    /// whether to build for Amazon Linux 2 or AWS Lambda
+    #[argh(positional)]
+    mode: BuildMode,
+
+    /// path of the project to build (default: current directory)
+    #[argh(positional, default = "env::current_dir().unwrap()")]
+    project: PathBuf,
 }
 
 #[throws]
@@ -100,11 +86,11 @@ fn main() {
     let opt: Opt = argh::from_env();
     let builder = Builder {
         rust_version: opt.rust_version,
-        mode: opt.command.to_mode(),
+        mode: opt.mode,
         bin: opt.bin,
         strip: opt.strip,
         container_cmd: Path::new(&opt.container_cmd).into(),
-        project: opt.command.project().into(),
+        project: opt.project,
     };
     builder.run()?;
 }
