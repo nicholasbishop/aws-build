@@ -14,7 +14,7 @@ anyhow = "1.0"
 argh = "0.1"
 cargo_metadata = "0.11"
 chrono = "0.4"
-docker-command = "0.6"
+docker-command = "0.7"
 fehler = "1.0"
 log = { version = "0.4", features = ["std"] }
 sha2 = "0.9"

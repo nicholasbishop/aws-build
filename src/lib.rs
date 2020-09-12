@@ -6,6 +6,7 @@
 use anyhow::{anyhow, Context, Error};
 use cargo_metadata::MetadataCommand;
 use chrono::{Date, Datelike, Utc};
+use docker_command::command_run::{Command, LogTo};
 use docker_command::{BuildOpt, Docker, RunOpt, User, Volume};
 use fehler::{throw, throws};
 use log::info;
@@ -69,6 +70,12 @@ fn write_container_files() -> TempDir {
     tmp_dir
 }
 
+fn set_up_command(cmd: &mut Command) {
+    cmd.log_to = LogTo::Log;
+    cmd.combine_output = true;
+    cmd.log_output_on_error = true;
+}
+
 /// Create a unique output file name.
 ///
 /// The file name is intended to be identifiable, sortable by time,
@@ -121,50 +128,50 @@ impl<'a> Container<'a> {
         let git_dir = self.target_dir.join(format!("{}-cargo-git", mode_name));
         ensure_dir_exists(&git_dir)?;
 
-        self.docker
-            .run(RunOpt {
-                remove: true,
-                env: vec![
-                    (
-                        "TARGET_DIR".into(),
-                        Path::new("/code/target").join(mode_name).into(),
-                    ),
-                    ("BIN_TARGET".into(), self.bin.into()),
-                ],
-                init: true,
-                user: Some(User::current()),
-                volumes: vec![
-                    // Mount the project directory
-                    Volume {
-                        src: self.project_path.into(),
-                        dst: Path::new("/code").into(),
-                        ..Default::default()
-                    },
-                    // Mount two cargo directories to make rebuilds faster
-                    Volume {
-                        src: registry_dir,
-                        dst: Path::new("/cargo/registry").into(),
-                        read_write: true,
-                        ..Default::default()
-                    },
-                    Volume {
-                        src: git_dir,
-                        dst: Path::new("/cargo/git").into(),
-                        read_write: true,
-                        ..Default::default()
-                    },
-                    // Mount the output target directory
-                    Volume {
-                        src: self.target_dir.into(),
-                        dst: Path::new("/code/target").into(),
-                        read_write: true,
-                        ..Default::default()
-                    },
-                ],
-                image: self.image_tag.into(),
-                ..Default::default()
-            })
-            .run()?;
+        let mut cmd = self.docker.run(RunOpt {
+            remove: true,
+            env: vec![
+                (
+                    "TARGET_DIR".into(),
+                    Path::new("/code/target").join(mode_name).into(),
+                ),
+                ("BIN_TARGET".into(), self.bin.into()),
+            ],
+            init: true,
+            user: Some(User::current()),
+            volumes: vec![
+                // Mount the project directory
+                Volume {
+                    src: self.project_path.into(),
+                    dst: Path::new("/code").into(),
+                    ..Default::default()
+                },
+                // Mount two cargo directories to make rebuilds faster
+                Volume {
+                    src: registry_dir,
+                    dst: Path::new("/cargo/registry").into(),
+                    read_write: true,
+                    ..Default::default()
+                },
+                Volume {
+                    src: git_dir,
+                    dst: Path::new("/cargo/git").into(),
+                    read_write: true,
+                    ..Default::default()
+                },
+                // Mount the output target directory
+                Volume {
+                    src: self.target_dir.into(),
+                    dst: Path::new("/code/target").into(),
+                    read_write: true,
+                    ..Default::default()
+                },
+            ],
+            image: self.image_tag.into(),
+            ..Default::default()
+        });
+        set_up_command(&mut cmd);
+        cmd.run()?;
 
         // Return the path of the binary that was built
         self.target_dir
@@ -344,17 +351,17 @@ impl Builder {
         let image_tag =
             format!("aws-build-{}-{}", self.mode.name(), self.rust_version);
         let tmp_dir = write_container_files()?;
-        docker
-            .build(BuildOpt {
-                build_args: vec![
-                    ("FROM_IMAGE".into(), from.into()),
-                    ("RUST_VERSION".into(), self.rust_version.clone()),
-                ],
-                context: tmp_dir.path().into(),
-                tag: Some(image_tag.clone()),
-                ..Default::default()
-            })
-            .run()?;
+        let mut cmd = docker.build(BuildOpt {
+            build_args: vec![
+                ("FROM_IMAGE".into(), from.into()),
+                ("RUST_VERSION".into(), self.rust_version.clone()),
+            ],
+            context: tmp_dir.path().into(),
+            tag: Some(image_tag.clone()),
+            ..Default::default()
+        });
+        set_up_command(&mut cmd);
+        cmd.run()?;
         image_tag
     }
 }
