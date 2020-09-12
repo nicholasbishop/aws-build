@@ -1,13 +1,14 @@
 # aws-build
 
 [![crates.io](https://img.shields.io/crates/v/aws-build.svg)](https://crates.io/crates/aws-build)
-[![Documentation](https://docs.rs/aws-build/badge.svg)](https://docs.rs/aws-build)
+[![Documentation](https://docs.rs/aws-build-lib/badge.svg)](https://docs.rs/aws-build-lib)
 
 Build a Rust project in a container for deployment to either an
 instance running AWS Linux 2 or AWS Lambda.
 
-Both a library and an executable are provided. The executable is a
-very thin wrapper around the library.
+Both a [library](https://crates.io/crates/aws-build-lib) and an
+[executable](https://crates.io/crates/aws-build) are provided. The
+executable is a very thin wrapper around the library.
 
 This crate only handles building the project locally. It does not
 interact with any AWS services.
