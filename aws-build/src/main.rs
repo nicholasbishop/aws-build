@@ -1,6 +1,6 @@
 use anyhow::Error;
 use argh::FromArgs;
-use aws_build::{
+use aws_build_lib::{
     BuildMode, Builder, DEFAULT_CONTAINER_CMD, DEFAULT_RUST_VERSION,
 };
 use fehler::throws;
@@ -103,7 +103,7 @@ mod tests {
     /// Test that the readme's usage section is up to date
     #[test]
     fn test_readme_usage() {
-        let readme = include_str!("../README.md");
+        let readme = include_str!("../../README.md");
         let mut usage = Opt::from_args(&["aws-build"], &["--help"])
             .unwrap_err()
             .output;
