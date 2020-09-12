@@ -240,13 +240,14 @@ impl Default for Builder {
 impl Builder {
     /// Run the build in a container.
     ///
-    /// This will produce zip files ready for use with AWS Lambda in
-    /// the lambda-target subdirectory, one zip file per binary
-    /// target. The lambda-target/latest file will be updated with a
-    /// list of the latest zip names.
+    /// This will produce either a standalone executable (for Amazon
+    /// Linux 2) or a zip file (for AWS Lambda). The file is given a
+    /// unique name for convenient uploading to S3, and a short
+    /// symlink to the file is also created (target/latest-al2 or
+    /// target/latest-lambda).
     ///
-    /// Returns the full paths of each zip file.
-    /// TODO update this doc
+    /// The full path of the output file (not the symlink) is
+    /// returned.
     #[throws]
     pub fn run(&self) -> PathBuf {
         // Canonicalize the project path. This is necessary for when it's
