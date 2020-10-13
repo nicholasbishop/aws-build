@@ -358,6 +358,7 @@ impl Builder {
                 ))?;
                 let mut zip = ZipWriter::new(file);
                 let options = zip::write::FileOptions::default()
+                    .unix_permissions(0o755)
                     .compression_method(zip::CompressionMethod::Deflated);
                 zip.start_file("bootstrap", options)?;
                 zip.write_all(&bin_contents)?;
