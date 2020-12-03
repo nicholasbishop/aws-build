@@ -68,6 +68,10 @@ struct Opt {
     /// than one binary target)
     #[argh(option)]
     bin: Option<String>,
+    
+    /// dev packages to install in container for build
+    #[argh(option)]
+    package: Vec<String>,
 
     /// whether to build for Amazon Linux 2 or AWS Lambda
     #[argh(positional)]
@@ -91,6 +95,7 @@ fn main() {
         strip: opt.strip,
         container_cmd: Path::new(&opt.container_cmd).into(),
         project: opt.project,
+        packages: opt.package,
     };
     builder.run()?;
 }
