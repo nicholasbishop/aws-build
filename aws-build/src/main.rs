@@ -68,7 +68,7 @@ struct Opt {
     /// than one binary target)
     #[argh(option)]
     bin: Option<String>,
-    
+
     /// yum devel package to install in build container
     #[argh(option)]
     package: Vec<String>,
