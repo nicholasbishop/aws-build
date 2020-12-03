@@ -32,7 +32,7 @@ directory. There is also a `target/latest-al2` or
 `target/latest-lambda` symlink that points to the output file.
 
 ```
-aws-build <mode> [<project>] [--container-cmd <container-cmd>] [--rust-version <rust-version>] [--strip] [--bin <bin>] [--package <rpm-package>]
+aws-build <mode> [<project>] [--container-cmd <container-cmd>] [--rust-version <rust-version>] [--strip] [--bin <bin>] [--package <package>]
 
 Build the project in a container for deployment to AWS.
 
@@ -45,7 +45,7 @@ Options:
   --strip           strip debug symbols
   --bin             name of the binary target to build (required if there is
                     more than one binary target)
-  --package         yum devel package to install before build
+  --package         yum devel package to install in build container
   --help            display usage information
 ```
 

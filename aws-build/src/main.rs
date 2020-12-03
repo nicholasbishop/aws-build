@@ -69,7 +69,7 @@ struct Opt {
     #[argh(option)]
     bin: Option<String>,
     
-    /// dev packages to install in container for build
+    /// yum devel package to install in build container
     #[argh(option)]
     package: Vec<String>,
 
