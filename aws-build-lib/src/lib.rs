@@ -250,6 +250,9 @@ pub struct Builder {
 
     /// Path of the project to build.
     pub project: PathBuf,
+
+    /// dev packages to install in container for build
+    pub packages: Vec<String>,
 }
 
 impl Default for Builder {
@@ -261,6 +264,7 @@ impl Default for Builder {
             strip: false,
             container_cmd: DEFAULT_CONTAINER_CMD.into(),
             project: PathBuf::default(),
+            packages: vec![],
         }
     }
 }
@@ -401,6 +405,7 @@ impl Builder {
             build_args: vec![
                 ("FROM_IMAGE".into(), from.into()),
                 ("RUST_VERSION".into(), self.rust_version.clone()),
+                ("DEV_PKGS".into(), self.packages.join(" ")),
             ],
             context: tmp_dir.path().into(),
             tag: Some(image_tag.clone()),

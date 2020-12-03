@@ -69,6 +69,10 @@ struct Opt {
     #[argh(option)]
     bin: Option<String>,
 
+    /// yum devel package to install in build container
+    #[argh(option)]
+    package: Vec<String>,
+
     /// whether to build for Amazon Linux 2 or AWS Lambda
     #[argh(positional)]
     mode: BuildMode,
@@ -91,6 +95,7 @@ fn main() {
         strip: opt.strip,
         container_cmd: Path::new(&opt.container_cmd).into(),
         project: opt.project,
+        packages: opt.package,
     };
     builder.run()?;
 }
