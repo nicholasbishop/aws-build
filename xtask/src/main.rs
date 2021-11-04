@@ -16,12 +16,18 @@ struct Opt {
 #[argh(subcommand)]
 enum Action {
     DockerTest(DockerTest),
+    PodmanTest(PodmanTest),
 }
 
 /// Test that building with Docker works.
 #[derive(Debug, FromArgs)]
 #[argh(subcommand, name = "docker-test")]
 struct DockerTest {}
+
+/// Test that building with Podman works.
+#[derive(Debug, FromArgs)]
+#[argh(subcommand, name = "podman-test")]
+struct PodmanTest {}
 
 /// Get the absolute path of the repo. Assumes that this executable is
 /// located at <repo>/target/<buildmode>/<exename>.
@@ -39,7 +45,7 @@ fn get_repo_path() -> Utf8PathBuf {
 }
 
 #[throws]
-fn run_docker_test() {
+fn run_build_test(container_cmd: &str) {
     let repo_dir = get_repo_path()?;
 
     Command::with_args(
@@ -50,6 +56,8 @@ fn run_docker_test() {
             "aws-build",
             "--",
             "al2",
+            "--container-cmd",
+            container_cmd,
             "--bin",
             "aws-build",
         ],
@@ -68,6 +76,10 @@ fn main() {
     let opt: Opt = argh::from_env();
 
     match opt.action {
-        Action::DockerTest(_) => run_docker_test()?,
+        Action::DockerTest(_) => run_build_test("docker")?,
+        // TODO: currently the CI only runs the docker test because
+        // podman is not yet supported on github runners. See
+        // https://github.com/actions/runner/issues/505.
+        Action::PodmanTest(_) => run_build_test("podman")?,
     }
 }
