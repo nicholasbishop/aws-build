@@ -32,7 +32,7 @@ directory. There is also a `target/latest-al2` or
 `target/latest-lambda` symlink that points to the output file.
 
 ```
-aws-build <mode> [<project>] [--container-cmd <container-cmd>] [--rust-version <rust-version>] [--strip] [--bin <bin>] [--package <package>]
+aws-build <mode> [<project>] [--container-cmd <container-cmd>] [--rust-version <rust-version>] [--strip] [--bin <bin>] [--package <package...>]
 
 Build the project in a container for deployment to AWS.
 
