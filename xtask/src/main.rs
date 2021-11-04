@@ -40,9 +40,20 @@ fn get_repo_path() -> Utf8PathBuf {
 
 #[throws]
 fn run_docker_test() {
-    Command::with_args("cargo", &["run", "--bin", "aws-build", "al2"])
-        .set_dir(get_repo_path()?)
-        .run()?;
+    Command::with_args(
+        "cargo",
+        &[
+            "run",
+            "--bin",
+            "aws-build",
+            "--",
+            "al2",
+            "--bin",
+            "aws-build",
+        ],
+    )
+    .set_dir(get_repo_path()?)
+    .run()?;
 }
 
 #[throws]
