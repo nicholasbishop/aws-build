@@ -90,7 +90,7 @@ fn make_unique_name(
     contents: &[u8],
     when: Date<Utc>,
 ) -> String {
-    let hash = sha2::Sha256::digest(&contents);
+    let hash = sha2::Sha256::digest(contents);
     format!(
         "{}-{}-{}{:02}{:02}-{:.16x}",
         mode.name(),
