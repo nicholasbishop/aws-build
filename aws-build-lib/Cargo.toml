@@ -11,12 +11,12 @@ readme = "../README.md"
 repository = "https://github.com/nicholasbishop/aws-build"
 
 [dependencies]
-anyhow = "1.0"
-cargo_metadata = "0.12"
-chrono = "0.4"
-docker-command = "0.7"
-fehler = "1.0"
-log = { version = "0.4", features = ["std"] }
-sha2 = "0.9"
-tempfile = "3.1"
-zip = "0.5"
+anyhow = { version = "1.0", default-features = false }
+cargo_metadata = { version = "0.12", default-features = false }
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+docker-command = { version = "0.7", default-features = false }
+fehler = { version = "1.0", default-features = false }
+log = { version = "0.4", default-features = false, features = ["std"] }
+sha2 = { version = "0.9", default-features = false }
+tempfile = { version = "3.1", default-features = false }
+zip = { version = "0.5", default-features = false, features = ["deflate"] }

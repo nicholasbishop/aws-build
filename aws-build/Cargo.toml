@@ -13,7 +13,7 @@ repository = "https://github.com/nicholasbishop/aws-build"
 [dependencies]
 aws-build-lib = { version = "0.9.3", path = "../aws-build-lib" }
 
-anyhow = "1.0"
-argh = "0.1"
-fehler = "1.0"
-log = "0.4"
+anyhow = { version = "1.0", default-features = false, features = ["std"] }
+argh = { version = "0.1", default-features = false }
+fehler = { version = "1.0", default-features = false }
+log = { version = "0.4", default-features = false }
