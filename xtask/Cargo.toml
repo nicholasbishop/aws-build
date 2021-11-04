@@ -1,0 +1,12 @@
+[package]
+name = "xtask"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+anyhow = { version = "1.0.45", default-features = false, features = ["std"] }
+argh = { version = "0.1.6", default-features = false }
+camino = { version = "1.0.5", default-features = false }
+command-run = { version = "1.0.2", default-features = false }
+fehler = { version = "1.0.0", default-features = false }

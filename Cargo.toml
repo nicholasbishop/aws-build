@@ -2,4 +2,5 @@
 members = [
     "aws-build-lib",
     "aws-build",
+    "xtask",
 ]
