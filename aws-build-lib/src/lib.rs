@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 use zip::ZipWriter;
 
-/// Default rust verison to install.
+/// Default rust version to install.
 pub static DEFAULT_RUST_VERSION: &str = "stable";
 
 /// Default container command used to run the build.
