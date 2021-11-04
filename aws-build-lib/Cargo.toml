@@ -2,7 +2,7 @@
 name = "aws-build-lib"
 version = "0.9.3"
 authors = ["Nicholas Bishop <nicholasbishop@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 description = "Build Rust crates for deployment to AWS EC2 or AWS Lambda"
 keywords = ["aws", "lambda", "docker", "build", "ec2"]
