@@ -66,8 +66,11 @@ fn run_build_test(container_cmd: &str) {
     .run()?;
 
     // Check that one output file was created.
-    let output =
-        glob::glob(repo_dir.join("target/al2/al2-aws-build-*").as_str())?;
+    let output = glob::glob(
+        repo_dir
+            .join("target/aws-build/al2/al2-aws-build-*")
+            .as_str(),
+    )?;
     assert_eq!(output.count(), 1);
 
     println!("success");

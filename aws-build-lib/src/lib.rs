@@ -110,7 +110,7 @@ struct Container<'a> {
     bin: &'a String,
     launcher: &'a Launcher,
     project_path: &'a Path,
-    target_dir: &'a Path,
+    output_dir: &'a Path,
     image_tag: &'a str,
 }
 
@@ -123,10 +123,10 @@ impl<'a> Container<'a> {
         // host mounts rather than volumes so that the permissions aren't
         // set to root only.
         let registry_dir = self
-            .target_dir
+            .output_dir
             .join(format!("{}-cargo-registry", mode_name));
         ensure_dir_exists(&registry_dir)?;
-        let git_dir = self.target_dir.join(format!("{}-cargo-git", mode_name));
+        let git_dir = self.output_dir.join(format!("{}-cargo-git", mode_name));
         ensure_dir_exists(&git_dir)?;
 
         let mut cmd = self.launcher.run(RunOpt {
@@ -162,7 +162,7 @@ impl<'a> Container<'a> {
                 },
                 // Mount the output target directory
                 Volume {
-                    src: self.target_dir.into(),
+                    src: self.output_dir.into(),
                     dst: Path::new("/code/target").into(),
                     read_write: true,
                     ..Default::default()
@@ -175,7 +175,7 @@ impl<'a> Container<'a> {
         cmd.run()?;
 
         // Return the path of the binary that was built
-        self.target_dir
+        self.output_dir
             .join(mode_name)
             .join("release")
             .join(self.bin)
@@ -284,6 +284,9 @@ impl Builder {
         let target_dir = project_path.join("target");
         ensure_dir_exists(&target_dir)?;
 
+        let output_dir = target_dir.join("aws-build");
+        ensure_dir_exists(&output_dir)?;
+
         let image_tag =
             self.build_container().context("container build failed")?;
 
@@ -306,7 +309,7 @@ impl Builder {
             mode: self.mode,
             launcher: &self.launcher,
             project_path: &project_path,
-            target_dir: &target_dir,
+            output_dir: &output_dir,
             image_tag: &image_tag,
             bin: &bin,
         };
@@ -331,7 +334,7 @@ impl Builder {
                 // versions can be uploaded to S3 without overwriting
                 // each other.
                 let out_path =
-                    target_dir.join(self.mode.name()).join(base_unique_name);
+                    output_dir.join(self.mode.name()).join(base_unique_name);
                 fs::copy(bin_path, &out_path)?;
                 info!("writing {}", out_path.display());
                 out_path
@@ -342,7 +345,7 @@ impl Builder {
                 // without overwriting each other.
                 let zip_name = base_unique_name + ".zip";
                 let zip_path =
-                    target_dir.join(self.mode.name()).join(&zip_name);
+                    output_dir.join(self.mode.name()).join(&zip_name);
 
                 // Create the zip file containing just a bootstrap
                 // file (the executable)
