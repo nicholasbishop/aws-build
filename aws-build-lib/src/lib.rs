@@ -5,7 +5,6 @@
 
 use anyhow::{anyhow, Context, Error};
 use cargo_metadata::MetadataCommand;
-use chrono::{Date, Datelike, Utc};
 use docker_command::command_run::{Command, LogTo};
 use docker_command::{BuildOpt, Docker, RunOpt, User, Volume};
 use fehler::{throw, throws};
@@ -15,6 +14,7 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
+use time::{Date, OffsetDateTime};
 use zip::ZipWriter;
 
 /// Default rust version to install.
@@ -88,7 +88,7 @@ fn make_unique_name(
     mode: BuildMode,
     name: &str,
     contents: &[u8],
-    when: Date<Utc>,
+    when: Date,
 ) -> String {
     let hash = sha2::Sha256::digest(contents);
     format!(
@@ -96,7 +96,7 @@ fn make_unique_name(
         mode.name(),
         name,
         when.year(),
-        when.month(),
+        u8::from(when.month()),
         when.day(),
         // The hash is truncated to 16 characters so that the file
         // name isn't unnecessarily long
@@ -331,8 +331,12 @@ impl Builder {
 
         let bin_contents = fs::read(&bin_path)
             .context(format!("failed to read {}", bin_path.display()))?;
-        let base_unique_name =
-            make_unique_name(self.mode, &bin, &bin_contents, Utc::now().date());
+        let base_unique_name = make_unique_name(
+            self.mode,
+            &bin,
+            &bin_contents,
+            OffsetDateTime::now_utc().date(),
+        );
 
         let out_path = match self.mode {
             BuildMode::AmazonLinux2 => {
@@ -420,11 +424,11 @@ impl Builder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::TimeZone;
+    use time::Month;
 
     #[test]
     fn test_unique_name() {
-        let when = Utc.ymd(2020, 8, 31);
+        let when = Date::from_calendar_date(2020, Month::August, 31).unwrap();
         assert_eq!(
             make_unique_name(
                 BuildMode::Lambda,
