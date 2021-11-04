@@ -40,6 +40,8 @@ fn get_repo_path() -> Utf8PathBuf {
 
 #[throws]
 fn run_docker_test() {
+    let repo_dir = get_repo_path()?;
+
     Command::with_args(
         "cargo",
         &[
@@ -52,8 +54,13 @@ fn run_docker_test() {
             "aws-build",
         ],
     )
-    .set_dir(get_repo_path()?)
+    .set_dir(&repo_dir)
     .run()?;
+
+    // Check that one output file was created.
+    let output =
+        glob::glob(repo_dir.join("target/al2/al2-aws-build-*").as_str())?;
+    assert_eq!(output.count(), 1);
 }
 
 #[throws]
