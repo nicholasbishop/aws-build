@@ -62,6 +62,7 @@ dependencies = [
  "cargo_metadata",
  "docker-command",
  "fehler",
+ "fs-err",
  "log",
  "sha2",
  "tempfile",
@@ -211,6 +212,12 @@ dependencies = [
  "libc",
  "miniz_oxide",
 ]
+
+[[package]]
+name = "fs-err"
+version = "2.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ebd3504ad6116843b8375ad70df74e7bfe83cac77a1f3fe73200c844d43bfe0"
 
 [[package]]
 name = "generic-array"

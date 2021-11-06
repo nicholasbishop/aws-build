@@ -8,9 +8,9 @@ use cargo_metadata::MetadataCommand;
 use docker_command::command_run::{Command, LogTo};
 use docker_command::{BuildOpt, Docker, RunOpt, User, Volume};
 use fehler::{throw, throws};
+use fs_err as fs;
 use log::info;
 use sha2::Digest;
-use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
@@ -48,24 +48,15 @@ fn get_package_binaries(path: &Path) -> Vec<String> {
     names
 }
 
-/// Write `contents` to `path`.
-///
-/// This adds the path as context to the error.
-#[throws]
-fn write_file(path: &Path, contents: &str) {
-    fs::write(path, contents)
-        .context(format!("failed to write to {}", path.display()))?;
-}
-
 #[throws]
 fn write_container_files() -> TempDir {
     let tmp_dir = TempDir::new()?;
 
     let dockerfile = include_str!("container/Dockerfile");
-    write_file(&tmp_dir.path().join("Dockerfile"), dockerfile)?;
+    fs::write(tmp_dir.path().join("Dockerfile"), dockerfile)?;
 
     let build_script = include_str!("container/build.sh");
-    write_file(&tmp_dir.path().join("build.sh"), build_script)?;
+    fs::write(tmp_dir.path().join("build.sh"), build_script)?;
 
     tmp_dir
 }
@@ -329,8 +320,7 @@ impl Builder {
             strip(&bin_path)?;
         }
 
-        let bin_contents = fs::read(&bin_path)
-            .context(format!("failed to read {}", bin_path.display()))?;
+        let bin_contents = fs::read(&bin_path)?;
         let base_unique_name = make_unique_name(
             self.mode,
             &bin,
@@ -360,10 +350,7 @@ impl Builder {
                 // Create the zip file containing just a bootstrap
                 // file (the executable)
                 info!("writing {}", zip_path.display());
-                let file = fs::File::create(&zip_path).context(format!(
-                    "failed to create {}",
-                    zip_path.display()
-                ))?;
+                let file = fs::File::create(&zip_path)?;
                 let mut zip = ZipWriter::new(file);
                 let options = zip::write::FileOptions::default()
                     .unix_permissions(0o755)
