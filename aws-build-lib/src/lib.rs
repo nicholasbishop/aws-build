@@ -288,7 +288,9 @@ impl Builder {
             sudo: false,
             program: self.container_cmd.clone(),
         };
-        let image_tag = self.build_container(&docker)?;
+        let image_tag = self
+            .build_container(&docker)
+            .context("container build failed")?;
 
         // Get the binary target names
         let binaries = get_package_binaries(&project_path)?;
@@ -313,7 +315,7 @@ impl Builder {
             image_tag: &image_tag,
             bin: &bin,
         };
-        let bin_path = container.run()?;
+        let bin_path = container.run().context("container run failed")?;
 
         // Optionally strip symbols
         if self.strip {
