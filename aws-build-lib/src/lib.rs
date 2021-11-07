@@ -3,7 +3,7 @@
 //! Build a Rust project in a container for deployment to either
 //! Amazon Linux 2 or AWS Lambda.
 
-use anyhow::{anyhow, Context, Error};
+use anyhow::{anyhow, bail, Context, Error};
 use cargo_metadata::MetadataCommand;
 use docker_command::command_run::{Command, LogTo};
 use docker_command::{BuildOpt, Docker, RunOpt, User, Volume};
@@ -13,6 +13,7 @@ use log::info;
 use sha2::Digest;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use tempfile::TempDir;
 use time::{Date, OffsetDateTime};
 use zip::ZipWriter;
@@ -20,8 +21,58 @@ use zip::ZipWriter;
 /// Default rust version to install.
 pub static DEFAULT_RUST_VERSION: &str = "stable";
 
-/// Default container command used to run the build.
-pub static DEFAULT_CONTAINER_CMD: &str = "docker";
+/// Command used to interact with the container system.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ContainerCommand {
+    /// Use docker without sudo.
+    Docker,
+
+    /// Use docker with sudo.
+    SudoDocker,
+
+    /// Use podman.
+    Podman,
+}
+
+impl Default for ContainerCommand {
+    fn default() -> Self {
+        Self::Docker
+    }
+}
+
+impl FromStr for ContainerCommand {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "docker" => Ok(Self::Docker),
+            "sudo-docker" => Ok(Self::SudoDocker),
+            "podman" => Ok(Self::Podman),
+            _ => bail!("invalid container command"),
+        }
+    }
+}
+
+impl ContainerCommand {
+    fn to_docker(self) -> Docker {
+        let docker_name = "docker".into();
+        let podman_name = "podman".into();
+        match self {
+            Self::Docker => Docker {
+                sudo: false,
+                program: docker_name,
+            },
+            Self::SudoDocker => Docker {
+                sudo: true,
+                program: docker_name,
+            },
+            Self::Podman => Docker {
+                sudo: false,
+                program: podman_name,
+            },
+        }
+    }
+}
 
 /// Create directory if it doesn't already exist.
 #[throws]
@@ -235,9 +286,8 @@ pub struct Builder {
     /// Strip the binary.
     pub strip: bool,
 
-    /// Container command. Defaults to "docker", but "podman" should
-    /// work as well.
-    pub container_cmd: PathBuf,
+    /// Container command.
+    pub container_cmd: ContainerCommand,
 
     /// Path of the project to build.
     pub project: PathBuf,
@@ -253,8 +303,8 @@ impl Default for Builder {
             mode: BuildMode::AmazonLinux2,
             bin: None,
             strip: false,
-            container_cmd: DEFAULT_CONTAINER_CMD.into(),
-            project: PathBuf::default(),
+            container_cmd: Default::default(),
+            project: Default::default(),
             packages: vec![],
         }
     }
@@ -284,10 +334,7 @@ impl Builder {
         let target_dir = project_path.join("target");
         ensure_dir_exists(&target_dir)?;
 
-        let docker = Docker {
-            sudo: false,
-            program: self.container_cmd.clone(),
-        };
+        let docker = self.container_cmd.to_docker();
         let image_tag = self
             .build_container(&docker)
             .context("container build failed")?;

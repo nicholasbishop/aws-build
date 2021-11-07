@@ -1,11 +1,11 @@
 use anyhow::Error;
 use argh::FromArgs;
 use aws_build_lib::{
-    BuildMode, Builder, DEFAULT_CONTAINER_CMD, DEFAULT_RUST_VERSION,
+    BuildMode, Builder, ContainerCommand, DEFAULT_RUST_VERSION,
 };
 use fehler::throws;
 use std::env;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use log::{Level, Metadata, Record};
 
@@ -52,9 +52,9 @@ mode: al2 or lambda (for Amazon Linux 2 or AWS Lambda, respectively)
 project: path of the project to build (default: current directory)
 ")]
 struct Opt {
-    /// container command (default: docker)
-    #[argh(option, default = "DEFAULT_CONTAINER_CMD.into()")]
-    container_cmd: String,
+    /// container command: docker (default), sudo-docker, or podman
+    #[argh(option, default = "ContainerCommand::default()")]
+    container_cmd: ContainerCommand,
 
     /// rust version (default: latest stable)
     #[argh(option, default = "DEFAULT_RUST_VERSION.into()")]
@@ -93,7 +93,7 @@ fn main() {
         mode: opt.mode,
         bin: opt.bin,
         strip: opt.strip,
-        container_cmd: Path::new(&opt.container_cmd).into(),
+        container_cmd: opt.container_cmd,
         project: opt.project,
         packages: opt.package,
     };
