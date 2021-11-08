@@ -3,6 +3,8 @@
 //! Build a Rust project in a container for deployment to either
 //! Amazon Linux 2 or AWS Lambda.
 
+pub use docker_command;
+
 use anyhow::{anyhow, bail, Context, Error};
 use cargo_metadata::MetadataCommand;
 use docker_command::command_run::{Command, LogTo};
