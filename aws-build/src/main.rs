@@ -27,24 +27,6 @@ impl log::Log for Logger {
 
 static LOGGER: Logger = Logger;
 
-/// Build an executable that can run on Amazon Linux 2.
-#[derive(Debug, FromArgs)]
-#[argh(subcommand, name = "al2")]
-struct Al2 {
-    /// path of the project to build (default: current directory)
-    #[argh(positional, default = "env::current_dir().unwrap()")]
-    project: PathBuf,
-}
-
-/// Build a package for deployment to AWS Lambda.
-#[derive(Debug, FromArgs)]
-#[argh(subcommand, name = "lambda")]
-struct Lambda {
-    /// path of the project to build (default: current directory)
-    #[argh(positional, default = "env::current_dir().unwrap()")]
-    project: PathBuf,
-}
-
 #[throws(String)]
 fn parse_command(s: &str) -> Command {
     Command::from_whitespace_separated_str(s)
