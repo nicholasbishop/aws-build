@@ -5,7 +5,7 @@
 
 pub use docker_command;
 
-use anyhow::{anyhow, bail, Context, Error};
+use anyhow::{anyhow, Context, Error};
 use cargo_metadata::MetadataCommand;
 use docker_command::command_run::{Command, LogTo};
 use docker_command::{
@@ -17,56 +17,12 @@ use log::info;
 use sha2::Digest;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 use tempfile::TempDir;
 use time::{Date, OffsetDateTime};
 use zip::ZipWriter;
 
 /// Default rust version to install.
 pub static DEFAULT_RUST_VERSION: &str = "stable";
-
-/// Command used to interact with the container system.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ContainerCommand {
-    /// Use docker without sudo.
-    Docker,
-
-    /// Use docker with sudo.
-    SudoDocker,
-
-    /// Use podman.
-    Podman,
-}
-
-impl Default for ContainerCommand {
-    fn default() -> Self {
-        Self::Docker
-    }
-}
-
-impl FromStr for ContainerCommand {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "docker" => Ok(Self::Docker),
-            "sudo-docker" => Ok(Self::SudoDocker),
-            "podman" => Ok(Self::Podman),
-            _ => bail!("invalid container command"),
-        }
-    }
-}
-
-impl ContainerCommand {
-    fn to_launcher(self) -> Launcher {
-        match self {
-            Self::Docker => BaseCommand::Docker,
-            Self::SudoDocker => BaseCommand::SudoDocker,
-            Self::Podman => BaseCommand::Podman,
-        }
-        .into()
-    }
-}
 
 /// Create directory if it doesn't already exist.
 #[throws]
@@ -280,8 +236,8 @@ pub struct Builder {
     /// Strip the binary.
     pub strip: bool,
 
-    /// Container command.
-    pub container_cmd: ContainerCommand,
+    /// Container launcher.
+    pub launcher: Launcher,
 
     /// Path of the project to build.
     pub project: PathBuf,
@@ -297,7 +253,7 @@ impl Default for Builder {
             mode: BuildMode::AmazonLinux2,
             bin: None,
             strip: false,
-            container_cmd: Default::default(),
+            launcher: BaseCommand::Podman.into(),
             project: Default::default(),
             packages: vec![],
         }
@@ -328,10 +284,8 @@ impl Builder {
         let target_dir = project_path.join("target");
         ensure_dir_exists(&target_dir)?;
 
-        let launcher = self.container_cmd.to_launcher();
-        let image_tag = self
-            .build_container(&launcher)
-            .context("container build failed")?;
+        let image_tag =
+            self.build_container().context("container build failed")?;
 
         // Get the binary target names
         let binaries = get_package_binaries(&project_path)?;
@@ -350,7 +304,7 @@ impl Builder {
         // Build the project in a container
         let container = Container {
             mode: self.mode,
-            launcher: &launcher,
+            launcher: &self.launcher,
             project_path: &project_path,
             target_dir: &target_dir,
             image_tag: &image_tag,
@@ -420,7 +374,7 @@ impl Builder {
     }
 
     #[throws]
-    fn build_container(&self, launcher: &Launcher) -> String {
+    fn build_container(&self) -> String {
         // Build the container
         let from = match self.mode {
             BuildMode::AmazonLinux2 => {
@@ -435,7 +389,7 @@ impl Builder {
         let image_tag =
             format!("aws-build-{}-{}", self.mode.name(), self.rust_version);
         let tmp_dir = write_container_files()?;
-        let mut cmd = launcher.build(BuildOpt {
+        let mut cmd = self.launcher.build(BuildOpt {
             build_args: vec![
                 ("FROM_IMAGE".into(), from.into()),
                 ("RUST_VERSION".into(), self.rust_version.clone()),

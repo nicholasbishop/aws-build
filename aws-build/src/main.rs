@@ -1,8 +1,8 @@
-use anyhow::Error;
+use anyhow::{anyhow, Error};
 use argh::FromArgs;
-use aws_build_lib::{
-    BuildMode, Builder, ContainerCommand, DEFAULT_RUST_VERSION,
-};
+use aws_build_lib::docker_command::command_run::Command;
+use aws_build_lib::docker_command::Launcher;
+use aws_build_lib::{BuildMode, Builder, DEFAULT_RUST_VERSION};
 use fehler::throws;
 use std::env;
 use std::path::PathBuf;
@@ -45,6 +45,12 @@ struct Lambda {
     project: PathBuf,
 }
 
+#[throws(String)]
+fn parse_command(s: &str) -> Command {
+    Command::from_whitespace_separated_str(s)
+        .ok_or_else(|| "command is empty".to_string())?
+}
+
 #[derive(Debug, FromArgs)]
 #[argh(description = "Build the project in a container for deployment to AWS.
 
@@ -52,9 +58,10 @@ mode: al2 or lambda (for Amazon Linux 2 or AWS Lambda, respectively)
 project: path of the project to build (default: current directory)
 ")]
 struct Opt {
-    /// container command: docker (default), sudo-docker, or podman
-    #[argh(option, default = "ContainerCommand::default()")]
-    container_cmd: ContainerCommand,
+    /// base container command, e.g. docker or podman, auto-detected by
+    /// default
+    #[argh(option, from_str_fn(parse_command))]
+    container_cmd: Option<Command>,
 
     /// rust version (default: latest stable)
     #[argh(option, default = "DEFAULT_RUST_VERSION.into()")]
@@ -82,18 +89,32 @@ struct Opt {
     project: PathBuf,
 }
 
+impl Opt {
+    #[throws]
+    fn launcher(&self) -> Launcher {
+        if let Some(cmd) = self.container_cmd.as_ref() {
+            Launcher::new(cmd.clone())
+        } else {
+            Launcher::auto()
+                .ok_or_else(|| anyhow!("no container system detected"))?
+        }
+    }
+}
+
 #[throws]
 fn main() {
     log::set_logger(&LOGGER)
         .map(|()| log::set_max_level(log::LevelFilter::Info))?;
 
     let opt: Opt = argh::from_env();
+    let launcher = opt.launcher()?;
+
     let builder = Builder {
         rust_version: opt.rust_version,
         mode: opt.mode,
         bin: opt.bin,
         strip: opt.strip,
-        container_cmd: opt.container_cmd,
+        launcher,
         project: opt.project,
         packages: opt.package,
     };

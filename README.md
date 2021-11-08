@@ -40,7 +40,8 @@ mode: al2 or lambda (for Amazon Linux 2 or AWS Lambda, respectively)
 project: path of the project to build (default: current directory)
 
 Options:
-  --container-cmd   container command: docker (default), sudo-docker, or podman
+  --container-cmd   base container command, e.g. docker or podman, auto-detected
+                    by default
   --rust-version    rust version (default: latest stable)
   --strip           strip debug symbols
   --bin             name of the binary target to build (required if there is
