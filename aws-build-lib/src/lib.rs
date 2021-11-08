@@ -115,6 +115,20 @@ struct Container<'a> {
 }
 
 impl<'a> Container<'a> {
+    /// Recursively set the owner of `dir` using the `podman unshare`
+    /// command. The input `user` is treated as a user (and group)
+    /// inside the container. This means that an input of "root" is
+    /// really the current user (from outside the chroot).
+    #[throws]
+    fn set_podman_permissions(&self, user: &UserAndGroup, dir: &Path) {
+        Command::with_args(
+            "podman",
+            &["unshare", "chown", "--recursive", &user.arg()],
+        )
+        .add_arg(dir)
+        .run()?;
+    }
+
     #[throws]
     fn run(&self) -> PathBuf {
         let mode_name = self.mode.name();
@@ -128,6 +142,15 @@ impl<'a> Container<'a> {
         ensure_dir_exists(&registry_dir)?;
         let git_dir = self.output_dir.join(format!("{}-cargo-git", mode_name));
         ensure_dir_exists(&git_dir)?;
+
+        if self.launcher.is_podman() {
+            // Recursively set the output directory's permissions such
+            // that the non-root user in the container owns it.
+            self.set_podman_permissions(
+                &UserAndGroup::current(),
+                self.output_dir,
+            )?;
+        }
 
         let mut cmd = self.launcher.run(RunOpt {
             remove: true,
@@ -152,20 +175,20 @@ impl<'a> Container<'a> {
                     src: registry_dir,
                     dst: Path::new("/cargo/registry").into(),
                     read_write: true,
-                    ..Default::default()
+                    options: vec!["z".into()],
                 },
                 Volume {
                     src: git_dir,
                     dst: Path::new("/cargo/git").into(),
                     read_write: true,
-                    ..Default::default()
+                    options: vec!["z".into()],
                 },
                 // Mount the output target directory
                 Volume {
                     src: self.output_dir.into(),
                     dst: Path::new("/code/target").into(),
                     read_write: true,
-                    ..Default::default()
+                    options: vec!["z".into()],
                 },
             ],
             image: self.image_tag.into(),
@@ -173,6 +196,16 @@ impl<'a> Container<'a> {
         });
         set_up_command(&mut cmd);
         cmd.run()?;
+
+        if self.launcher.is_podman() {
+            // Recursively set the output directory's permissions back
+            // to the current user. The current user is "root" inside
+            // the container, hence the odd-looking input.
+            self.set_podman_permissions(
+                &UserAndGroup::root(),
+                self.output_dir,
+            )?;
+        }
 
         // Return the path of the binary that was built
         self.output_dir
