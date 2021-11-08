@@ -6,7 +6,9 @@
 use anyhow::{anyhow, bail, Context, Error};
 use cargo_metadata::MetadataCommand;
 use docker_command::command_run::{Command, LogTo};
-use docker_command::{BuildOpt, Docker, RunOpt, User, Volume};
+use docker_command::{
+    BaseCommand, BuildOpt, Launcher, RunOpt, UserAndGroup, Volume,
+};
 use fehler::{throw, throws};
 use fs_err as fs;
 use log::info;
@@ -54,23 +56,13 @@ impl FromStr for ContainerCommand {
 }
 
 impl ContainerCommand {
-    fn to_docker(self) -> Docker {
-        let docker_name = "docker".into();
-        let podman_name = "podman".into();
+    fn to_launcher(self) -> Launcher {
         match self {
-            Self::Docker => Docker {
-                sudo: false,
-                program: docker_name,
-            },
-            Self::SudoDocker => Docker {
-                sudo: true,
-                program: docker_name,
-            },
-            Self::Podman => Docker {
-                sudo: false,
-                program: podman_name,
-            },
+            Self::Docker => BaseCommand::Docker,
+            Self::SudoDocker => BaseCommand::SudoDocker,
+            Self::Podman => BaseCommand::Podman,
         }
+        .into()
     }
 }
 
@@ -158,7 +150,7 @@ fn strip(path: &Path) {
 struct Container<'a> {
     mode: BuildMode,
     bin: &'a String,
-    docker: &'a Docker,
+    launcher: &'a Launcher,
     project_path: &'a Path,
     target_dir: &'a Path,
     image_tag: &'a str,
@@ -179,7 +171,7 @@ impl<'a> Container<'a> {
         let git_dir = self.target_dir.join(format!("{}-cargo-git", mode_name));
         ensure_dir_exists(&git_dir)?;
 
-        let mut cmd = self.docker.run(RunOpt {
+        let mut cmd = self.launcher.run(RunOpt {
             remove: true,
             env: vec![
                 (
@@ -189,7 +181,7 @@ impl<'a> Container<'a> {
                 ("BIN_TARGET".into(), self.bin.into()),
             ],
             init: true,
-            user: Some(User::current()),
+            user: Some(UserAndGroup::current()),
             volumes: vec![
                 // Mount the project directory
                 Volume {
@@ -334,9 +326,9 @@ impl Builder {
         let target_dir = project_path.join("target");
         ensure_dir_exists(&target_dir)?;
 
-        let docker = self.container_cmd.to_docker();
+        let launcher = self.container_cmd.to_launcher();
         let image_tag = self
-            .build_container(&docker)
+            .build_container(&launcher)
             .context("container build failed")?;
 
         // Get the binary target names
@@ -356,7 +348,7 @@ impl Builder {
         // Build the project in a container
         let container = Container {
             mode: self.mode,
-            docker: &docker,
+            launcher: &launcher,
             project_path: &project_path,
             target_dir: &target_dir,
             image_tag: &image_tag,
@@ -426,7 +418,7 @@ impl Builder {
     }
 
     #[throws]
-    fn build_container(&self, docker: &Docker) -> String {
+    fn build_container(&self, launcher: &Launcher) -> String {
         // Build the container
         let from = match self.mode {
             BuildMode::AmazonLinux2 => {
@@ -441,7 +433,7 @@ impl Builder {
         let image_tag =
             format!("aws-build-{}-{}", self.mode.name(), self.rust_version);
         let tmp_dir = write_container_files()?;
-        let mut cmd = docker.build(BuildOpt {
+        let mut cmd = launcher.build(BuildOpt {
             build_args: vec![
                 ("FROM_IMAGE".into(), from.into()),
                 ("RUST_VERSION".into(), self.rust_version.clone()),

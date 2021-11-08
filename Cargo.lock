@@ -10,9 +10,9 @@ checksum = "aae1277d39aeec15cb388266ecc24b11c80469deae6067e17a1a7aa9e5c1f234"
 
 [[package]]
 name = "anyhow"
-version = "1.0.45"
+version = "1.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee10e43ae4a853c0a3591d4e2ada1719e553be18199d9da9d4a83f5927c2f5c7"
+checksum = "3aa828229c44c0293dd7d4d2300bdfc4d2883ffdba934c069a6b968957a81f70"
 
 [[package]]
 name = "argh"
@@ -136,9 +136,9 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "command-run"
-version = "1.0.2"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9261c8fe61d4a46ab6b2be033b7358c2ad78eaf212c968e6dbf2fd2f3ba8b08"
+checksum = "5f48efa2f56d23f048be2a9821c0f22b4debb5db14c1087d5570e8dfeaee21d4"
 dependencies = [
  "log",
  "os_pipe",
@@ -173,9 +173,9 @@ dependencies = [
 
 [[package]]
 name = "docker-command"
-version = "1.0.1"
+version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da97d3e11e9f609f987450f5a6b0a355c7f4475fb98189ce20f9784a5f40e0c0"
+checksum = "a2d68a03a35301cce6091d8dda780780a9c4d3d4ec4f50b62d9ab7c3203cf5e7"
 dependencies = [
  "command-run",
  "users",
