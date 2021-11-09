@@ -161,6 +161,7 @@ struct Container<'a> {
     project_path: &'a Path,
     output_dir: &'a Path,
     image_tag: &'a str,
+    relabel: Option<Relabel>,
 }
 
 impl<'a> Container<'a> {
@@ -193,6 +194,12 @@ impl<'a> Container<'a> {
             ));
         }
 
+        let mount_options = match self.relabel {
+            Some(Relabel::Shared) => vec!["z".to_string()],
+            Some(Relabel::Unshared) => vec!["Z".to_string()],
+            None => vec![],
+        };
+
         let mut cmd = self.launcher.run(RunOpt {
             remove: true,
             env: vec![
@@ -210,27 +217,27 @@ impl<'a> Container<'a> {
                     src: self.project_path.into(),
                     dst: Path::new("/code").into(),
                     read_write: false,
-                    ..Default::default()
+                    options: mount_options.clone(),
                 },
                 // Mount two cargo directories to make rebuilds faster
                 Volume {
                     src: registry_dir,
                     dst: Path::new("/cargo/registry").into(),
                     read_write: true,
-                    ..Default::default()
+                    options: mount_options.clone(),
                 },
                 Volume {
                     src: git_dir,
                     dst: Path::new("/cargo/git").into(),
                     read_write: true,
-                    ..Default::default()
+                    options: mount_options.clone(),
                 },
                 // Mount the output target directory
                 Volume {
                     src: self.output_dir.into(),
                     dst: Path::new("/code/target").into(),
                     read_write: true,
-                    ..Default::default()
+                    options: mount_options,
                 },
             ],
             image: self.image_tag.into(),
@@ -290,6 +297,16 @@ impl std::str::FromStr for BuildMode {
     }
 }
 
+/// Relabel files before bind-mounting.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Relabel {
+    /// Mount volumes with the `z` option.
+    Shared,
+
+    /// Mount volumes with the `Z` option.
+    Unshared,
+}
+
 /// Options for running the build.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Builder {
@@ -315,6 +332,14 @@ pub struct Builder {
 
     /// dev packages to install in container for build
     pub packages: Vec<String>,
+
+    /// Relabel files before bind-mounting (`z` or `Z` volume
+    /// option). Warning: this overwrites the current label on files on
+    /// the host. Doing this to a system directory like `/usr` could
+    /// [break your system].
+    ///
+    /// [break your system]: https://docs.docker.com/storage/bind-mounts/#configure-the-selinux-label
+    pub relabel: Option<Relabel>,
 }
 
 impl Default for Builder {
@@ -327,6 +352,7 @@ impl Default for Builder {
             launcher: BaseCommand::Podman.into(),
             project: Default::default(),
             packages: vec![],
+            relabel: None,
         }
     }
 }
@@ -380,6 +406,7 @@ impl Builder {
             output_dir: &output_dir,
             image_tag: &image_tag,
             bin: &bin,
+            relabel: self.relabel,
         };
         let bin_path = container.run().context("container run failed")?;
 
