@@ -308,10 +308,7 @@ impl Builder {
     pub fn run(&self) -> PathBuf {
         // Canonicalize the project path. This is necessary for when it's
         // passed as a Docker volume arg.
-        let project_path = self.project.canonicalize().context(format!(
-            "failed to canonicalize {}",
-            self.project.display(),
-        ))?;
+        let project_path = fs::canonicalize(&self.project)?;
 
         // Ensure that the target directory exists
         let target_dir = project_path.join("target");
