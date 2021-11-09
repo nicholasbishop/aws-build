@@ -175,20 +175,20 @@ impl<'a> Container<'a> {
                     src: registry_dir,
                     dst: Path::new("/cargo/registry").into(),
                     read_write: true,
-                    options: vec!["z".into()],
+                    ..Default::default()
                 },
                 Volume {
                     src: git_dir,
                     dst: Path::new("/cargo/git").into(),
                     read_write: true,
-                    options: vec!["z".into()],
+                    ..Default::default()
                 },
                 // Mount the output target directory
                 Volume {
                     src: self.output_dir.into(),
                     dst: Path::new("/code/target").into(),
                     read_write: true,
-                    options: vec!["z".into()],
+                    ..Default::default()
                 },
             ],
             image: self.image_tag.into(),
