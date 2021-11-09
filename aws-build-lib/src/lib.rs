@@ -168,6 +168,7 @@ impl<'a> Container<'a> {
                 Volume {
                     src: self.project_path.into(),
                     dst: Path::new("/code").into(),
+                    read_write: false,
                     ..Default::default()
                 },
                 // Mount two cargo directories to make rebuilds faster
