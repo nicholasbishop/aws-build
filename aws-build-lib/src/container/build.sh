@@ -8,4 +8,4 @@ export RUSTUP_HOME="/rustup"
 # Source cargo environment
 . "${CARGO_HOME}/env"
 
-cargo build --release --target-dir "${TARGET_DIR}" --bin "${BIN_TARGET}"
+cargo build --locked --release --target-dir "${TARGET_DIR}" --bin "${BIN_TARGET}"
