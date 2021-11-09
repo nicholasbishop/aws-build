@@ -13,7 +13,7 @@ use docker_command::{
 };
 use fehler::{throw, throws};
 use fs_err as fs;
-use log::info;
+use log::{error, info};
 use sha2::Digest;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -105,6 +105,55 @@ fn strip(path: &Path) {
     cmd.run()?;
 }
 
+/// Recursively set the owner of `dir` using the `podman unshare`
+/// command. The input `user` is treated as a user (and group)
+/// inside the container. This means that an input of "root" is
+/// really the current user (from outside the chroot).
+#[throws]
+fn set_podman_permissions(user: &UserAndGroup, dir: &Path) {
+    Command::with_args(
+        "podman",
+        &["unshare", "chown", "--recursive", &user.arg()],
+    )
+    .add_arg(dir)
+    .run()?;
+}
+
+struct ResetPodmanPermissions<'a> {
+    user: UserAndGroup,
+    dir: &'a Path,
+    done: bool,
+}
+
+impl<'a> ResetPodmanPermissions<'a> {
+    fn new(user: UserAndGroup, dir: &'a Path) -> Self {
+        Self {
+            dir,
+            user,
+            done: false,
+        }
+    }
+
+    /// Reset the permissions if not already done. Calling this is
+    /// preferred to waiting for the drop, because the error can be
+    /// propagated.
+    #[throws]
+    fn reset_permissions(&mut self) {
+        if !self.done {
+            set_podman_permissions(&self.user, self.dir)?;
+            self.done = true;
+        }
+    }
+}
+
+impl<'a> Drop for ResetPodmanPermissions<'a> {
+    fn drop(&mut self) {
+        if let Err(err) = self.reset_permissions() {
+            error!("failed to reset permissions: {}", err);
+        }
+    }
+}
+
 struct Container<'a> {
     mode: BuildMode,
     bin: &'a String,
@@ -115,20 +164,6 @@ struct Container<'a> {
 }
 
 impl<'a> Container<'a> {
-    /// Recursively set the owner of `dir` using the `podman unshare`
-    /// command. The input `user` is treated as a user (and group)
-    /// inside the container. This means that an input of "root" is
-    /// really the current user (from outside the chroot).
-    #[throws]
-    fn set_podman_permissions(&self, user: &UserAndGroup, dir: &Path) {
-        Command::with_args(
-            "podman",
-            &["unshare", "chown", "--recursive", &user.arg()],
-        )
-        .add_arg(dir)
-        .run()?;
-    }
-
     #[throws]
     fn run(&self) -> PathBuf {
         let mode_name = self.mode.name();
@@ -143,13 +178,19 @@ impl<'a> Container<'a> {
         let git_dir = self.output_dir.join(format!("{}-cargo-git", mode_name));
         ensure_dir_exists(&git_dir)?;
 
+        let mut reset_podman_permissions = None;
         if self.launcher.is_podman() {
             // Recursively set the output directory's permissions such
             // that the non-root user in the container owns it.
-            self.set_podman_permissions(
-                &UserAndGroup::current(),
+            set_podman_permissions(&UserAndGroup::current(), self.output_dir)?;
+
+            // Prepare an object to reset the permissions back to the
+            // current user. The current user is "root" inside the
+            // container, hence the odd-looking input.
+            reset_podman_permissions = Some(ResetPodmanPermissions::new(
+                UserAndGroup::root(),
                 self.output_dir,
-            )?;
+            ));
         }
 
         let mut cmd = self.launcher.run(RunOpt {
@@ -198,14 +239,10 @@ impl<'a> Container<'a> {
         set_up_command(&mut cmd);
         cmd.run()?;
 
-        if self.launcher.is_podman() {
+        if let Some(mut resetter) = reset_podman_permissions {
             // Recursively set the output directory's permissions back
-            // to the current user. The current user is "root" inside
-            // the container, hence the odd-looking input.
-            self.set_podman_permissions(
-                &UserAndGroup::root(),
-                self.output_dir,
-            )?;
+            // to the current user.
+            resetter.reset_permissions()?;
         }
 
         // Return the path of the binary that was built
