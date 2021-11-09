@@ -3,6 +3,7 @@ use argh::FromArgs;
 use camino::Utf8PathBuf;
 use command_run::Command;
 use fehler::throws;
+use fs_err as fs;
 use std::env;
 
 /// Custom tasks.
@@ -47,6 +48,14 @@ fn get_repo_path() -> Utf8PathBuf {
 #[throws]
 fn run_build_test(container_cmd: &str) {
     let repo_dir = get_repo_path()?;
+    let target_dir = repo_dir.join("target");
+    let symlink = target_dir.join("latest-al2");
+
+    // Delete the symlink if it already exists.
+    if symlink.exists() {
+        println!("deleting {}", symlink);
+        fs::remove_file(&symlink)?;
+    }
 
     Command::with_args(
         "cargo",
@@ -65,13 +74,16 @@ fn run_build_test(container_cmd: &str) {
     .set_dir(&repo_dir)
     .run()?;
 
-    // Check that one output file was created.
-    let output = glob::glob(
-        repo_dir
-            .join("target/aws-build/al2/al2-aws-build-*")
-            .as_str(),
-    )?;
-    assert_eq!(output.count(), 1);
+    println!("symlink: {}", symlink);
+
+    // Check that the symlink was created.
+    assert!(symlink.exists());
+
+    // Check that the symlink's target exists.
+    let symlink_target = fs::canonicalize(&symlink)?;
+    println!("symlink target: {}", symlink_target.display());
+    assert!(symlink_target != symlink);
+    assert!(symlink_target.exists());
 
     println!("success");
 }
