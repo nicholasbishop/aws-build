@@ -308,6 +308,7 @@ pub enum Relabel {
 }
 
 /// Options for running the build.
+#[must_use]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Builder {
     /// Rust version to install. Can be anything rustup understands as
