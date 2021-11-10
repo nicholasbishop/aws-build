@@ -307,6 +307,15 @@ pub enum Relabel {
     Unshared,
 }
 
+/// Output returned from [`Builder::run`] on success.
+pub struct BuilderOutput {
+    /// Path of the generated file.
+    pub real: PathBuf,
+
+    /// Path of the `latest-*` symlink.
+    pub symlink: PathBuf,
+}
+
 /// Options for running the build.
 #[must_use]
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -367,10 +376,9 @@ impl Builder {
     /// symlink to the file is also created (target/latest-al2 or
     /// target/latest-lambda).
     ///
-    /// The full path of the output file (not the symlink) is
-    /// returned.
+    /// The paths of the files are returned.
     #[throws]
-    pub fn run(&self) -> PathBuf {
+    pub fn run(&self) -> BuilderOutput {
         // Canonicalize the project path. This is necessary for when it's
         // passed as a Docker volume arg.
         let project_path = fs::canonicalize(&self.project)?;
@@ -469,7 +477,10 @@ impl Builder {
         let _ = fs::remove_file(&symlink_path);
         std::os::unix::fs::symlink(&out_path, &symlink_path)?;
 
-        out_path
+        BuilderOutput {
+            real: out_path,
+            symlink: symlink_path,
+        }
     }
 
     #[throws]
