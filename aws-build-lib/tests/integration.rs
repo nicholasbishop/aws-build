@@ -8,14 +8,17 @@ use std::path::Path;
 use tempfile::TempDir;
 
 #[throws]
-fn make_mock_project(root: &Path, name: &str) {
+fn make_mock_project(root: &Path, name: &str, deps: &[&str]) {
     let toml = format!(
         r#"
         [package]
         name = "{}"
         version = "0.0.0"
+        [dependencies]
+        {}
         "#,
-        name
+        name,
+        deps.join("\n"),
     );
 
     fs::write(root.join("Cargo.toml"), toml)?;
@@ -75,13 +78,14 @@ fn build_and_check(builder: Builder, project_name: &str) {
     assert_eq!(output.real.extension(), expected_extension);
 }
 
+/// Simple Amazon Linux 2 test.
 #[test]
 #[throws]
 fn test_al2() {
     let root = TempDir::new()?;
     let root = root.path();
     let project_name = "proj";
-    make_mock_project(root, project_name)?;
+    make_mock_project(root, project_name, &[])?;
     let builder = Builder {
         mode: BuildMode::AmazonLinux2,
         project: root.into(),
@@ -91,15 +95,37 @@ fn test_al2() {
     build_and_check(builder, project_name)?;
 }
 
+/// Simple Lambda test.
 #[test]
 #[throws]
 fn test_lambda() {
     let root = TempDir::new()?;
     let root = root.path();
     let project_name = "proj";
-    make_mock_project(root, project_name)?;
+    make_mock_project(root, project_name, &[])?;
     let builder = Builder {
         mode: BuildMode::Lambda,
+        project: root.into(),
+        relabel: Some(Relabel::Unshared),
+        ..Default::default()
+    };
+    build_and_check(builder, project_name)?;
+}
+
+/// Test that downloading dependencies works.
+///
+/// The dependency is arbitrary, just want to check that any dependency
+/// works from within the container.
+#[test]
+#[throws]
+fn test_with_deps() {
+    let root = TempDir::new()?;
+    let root = root.path();
+    let project_name = "proj";
+    let dep = r#"arrayvec = { version = "0.7.2", default-features = false }"#;
+    make_mock_project(root, project_name, &[dep])?;
+    let builder = Builder {
+        mode: BuildMode::AmazonLinux2,
         project: root.into(),
         relabel: Some(Relabel::Unshared),
         ..Default::default()
