@@ -97,7 +97,10 @@ fn main() {
         bin: opt.bin,
         strip: opt.strip,
         launcher,
-        project: opt.project,
+        // TODO: add an argument to control code root independently from
+        // project_path.
+        code_root: opt.project.clone(),
+        project_path: opt.project,
         packages: opt.package,
         relabel: None,
     };

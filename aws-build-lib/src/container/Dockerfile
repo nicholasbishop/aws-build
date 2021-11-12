@@ -19,6 +19,9 @@ ADD build.sh /build.sh
 RUN chmod +x /build.sh
 
 VOLUME ["/code"]
-WORKDIR /code
+
+# Change to the project directory.
+ARG PROJECT_PATH
+WORKDIR /code/"$PROJECT_PATH"
 
 ENTRYPOINT ["/build.sh"]

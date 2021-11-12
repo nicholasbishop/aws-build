@@ -48,13 +48,19 @@ fn build_and_check(builder: Builder, project_name: &str) {
     let expected_symlink_name = format!("latest-{}", mode_name);
     assert_eq!(
         output.symlink,
-        builder.project.join("target").join(expected_symlink_name)
+        builder
+            .project_path
+            .join("target")
+            .join(expected_symlink_name)
     );
 
     // Real output is in the right directory.
-    assert!(output
-        .real
-        .starts_with(builder.project.join("target/aws-build").join(mode_name)));
+    assert!(output.real.starts_with(
+        builder
+            .project_path
+            .join("target/aws-build")
+            .join(mode_name)
+    ));
 
     // Real output's file name has the right form.
     let real_file_name = output.real.file_stem().unwrap();
@@ -88,7 +94,8 @@ fn test_al2() {
     make_mock_project(root, project_name, &[])?;
     let builder = Builder {
         mode: BuildMode::AmazonLinux2,
-        project: root.into(),
+        project_path: root.into(),
+        code_root: root.into(),
         relabel: Some(Relabel::Unshared),
         ..Default::default()
     };
@@ -105,7 +112,8 @@ fn test_lambda() {
     make_mock_project(root, project_name, &[])?;
     let builder = Builder {
         mode: BuildMode::Lambda,
-        project: root.into(),
+        project_path: root.into(),
+        code_root: root.into(),
         relabel: Some(Relabel::Unshared),
         ..Default::default()
     };
@@ -126,9 +134,39 @@ fn test_with_deps() {
     make_mock_project(root, project_name, &[dep])?;
     let builder = Builder {
         mode: BuildMode::AmazonLinux2,
-        project: root.into(),
+        project_path: root.into(),
+        code_root: root.into(),
         relabel: Some(Relabel::Unshared),
         ..Default::default()
     };
     build_and_check(builder, project_name)?;
+}
+
+/// Test that building a project in a subdirectory of the code root
+/// works.
+#[test]
+#[throws]
+fn test_code_root() {
+    let root = TempDir::new()?;
+    let root = root.path();
+    let proj1 = "proj1";
+    fs::create_dir(root.join(proj1))?;
+    make_mock_project(&root.join(proj1), proj1, &[])?;
+
+    let proj2 = "proj2";
+    fs::create_dir(root.join(proj2))?;
+    make_mock_project(
+        &root.join(proj2),
+        proj2,
+        &[r#"proj1 = { path = "../proj1" }"#],
+    )?;
+
+    let builder = Builder {
+        mode: BuildMode::AmazonLinux2,
+        code_root: root.into(),
+        project_path: root.join(proj2),
+        relabel: Some(Relabel::Unshared),
+        ..Default::default()
+    };
+    build_and_check(builder, proj2)?;
 }
