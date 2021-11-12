@@ -489,11 +489,11 @@ impl Builder {
         let from = match self.mode {
             BuildMode::AmazonLinux2 => {
                 // https://hub.docker.com/_/amazonlinux
-                "amazonlinux:2"
+                "docker.io/amazonlinux:2"
             }
             BuildMode::Lambda => {
                 // https://github.com/lambci/docker-lambda#documentation
-                "lambci/lambda:build-provided.al2"
+                "docker.io/lambci/lambda:build-provided.al2"
             }
         };
         let image_tag =
