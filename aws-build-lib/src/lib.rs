@@ -158,10 +158,13 @@ struct Container<'a> {
     mode: BuildMode,
     bin: &'a String,
     launcher: &'a Launcher,
-    project_path: &'a Path,
     output_dir: &'a Path,
     image_tag: &'a str,
     relabel: Option<Relabel>,
+
+    /// The root of the code that gets mounted in the container. All the
+    /// source must live beneath this directory.
+    code_root: &'a Path,
 }
 
 impl<'a> Container<'a> {
@@ -212,9 +215,9 @@ impl<'a> Container<'a> {
             init: true,
             user: Some(UserAndGroup::current()),
             volumes: vec![
-                // Mount the project directory
+                // Mount the code root
                 Volume {
-                    src: self.project_path.into(),
+                    src: self.code_root.into(),
                     dst: Path::new("/code").into(),
                     read_write: false,
                     options: mount_options.clone(),
@@ -337,8 +340,13 @@ pub struct Builder {
     /// Container launcher.
     pub launcher: Launcher,
 
-    /// Path of the project to build.
-    pub project: PathBuf,
+    /// The root of the code that gets mounted in the container. All the
+    /// source must live beneath this directory.
+    pub code_root: PathBuf,
+
+    /// The project path is the path of the crate to build. It must be
+    /// somewhere within the `code_root` directory (or the same path).
+    pub project_path: PathBuf,
 
     /// dev packages to install in container for build
     pub packages: Vec<String>,
@@ -360,7 +368,8 @@ impl Default for Builder {
             bin: None,
             strip: false,
             launcher: BaseCommand::Podman.into(),
-            project: Default::default(),
+            code_root: Default::default(),
+            project_path: Default::default(),
             packages: vec![],
             relabel: None,
         }
@@ -379,9 +388,13 @@ impl Builder {
     /// The paths of the files are returned.
     #[throws]
     pub fn run(&self) -> BuilderOutput {
-        // Canonicalize the project path. This is necessary for when it's
+        // Canonicalize the input paths. This is necessary for when it's
         // passed as a Docker volume arg.
-        let project_path = fs::canonicalize(&self.project)?;
+        let code_root = fs::canonicalize(&self.code_root)?;
+        let project_path = fs::canonicalize(&self.project_path)?;
+        let relative_project_path = project_path
+            .strip_prefix(&code_root)
+            .context("project path must be within the code root")?;
 
         // Ensure that the target directory exists
         let target_dir = project_path.join("target");
@@ -390,8 +403,9 @@ impl Builder {
         let output_dir = target_dir.join("aws-build");
         ensure_dir_exists(&output_dir)?;
 
-        let image_tag =
-            self.build_container().context("container build failed")?;
+        let image_tag = self
+            .build_container(relative_project_path)
+            .context("container build failed")?;
 
         // Get the binary target names
         let binaries = get_package_binaries(&project_path)?;
@@ -411,11 +425,11 @@ impl Builder {
         let container = Container {
             mode: self.mode,
             launcher: &self.launcher,
-            project_path: &project_path,
             output_dir: &output_dir,
             image_tag: &image_tag,
             bin: &bin,
             relabel: self.relabel,
+            code_root: &code_root,
         };
         let bin_path = container.run().context("container run failed")?;
 
@@ -484,7 +498,7 @@ impl Builder {
     }
 
     #[throws]
-    fn build_container(&self) -> String {
+    fn build_container(&self, relative_project_path: &Path) -> String {
         // Build the container
         let from = match self.mode {
             BuildMode::AmazonLinux2 => {
@@ -504,6 +518,13 @@ impl Builder {
                 ("FROM_IMAGE".into(), from.into()),
                 ("RUST_VERSION".into(), self.rust_version.clone()),
                 ("DEV_PKGS".into(), self.packages.join(" ")),
+                (
+                    "PROJECT_PATH".into(),
+                    relative_project_path
+                        .to_str()
+                        .ok_or_else(|| anyhow!("project path is not utf-8"))?
+                        .into(),
+                ),
             ],
             context: tmp_dir.path().into(),
             tag: Some(image_tag.clone()),
