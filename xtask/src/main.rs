@@ -16,19 +16,18 @@ struct Opt {
 #[derive(Debug, FromArgs)]
 #[argh(subcommand)]
 enum Action {
-    DockerTest(DockerTest),
-    PodmanTest(PodmanTest),
+    Test(Test),
 }
 
-/// Test that building with Docker works.
+/// Run "live" tests using docker or podman.
 #[derive(Debug, FromArgs)]
-#[argh(subcommand, name = "docker-test")]
-struct DockerTest {}
-
-/// Test that building with Podman works.
-#[derive(Debug, FromArgs)]
-#[argh(subcommand, name = "podman-test")]
-struct PodmanTest {}
+#[argh(subcommand, name = "test")]
+struct Test {
+    /// base container command, e.g. docker or podman, auto-detected by
+    /// default
+    #[argh(option)]
+    container_cmd: Option<String>,
+}
 
 /// Get the absolute path of the repo. Assumes that this executable is
 /// located at <repo>/target/<buildmode>/<exename>.
@@ -46,7 +45,7 @@ fn get_repo_path() -> Utf8PathBuf {
 }
 
 #[throws]
-fn run_build_test(container_cmd: &str) {
+fn run_build_test(args: Test) {
     let repo_dir = get_repo_path()?;
     let target_dir = repo_dir.join("target");
     let symlink = target_dir.join("latest-al2");
@@ -57,7 +56,7 @@ fn run_build_test(container_cmd: &str) {
         fs::remove_file(&symlink)?;
     }
 
-    Command::with_args(
+    let mut cmd = Command::with_args(
         "cargo",
         &[
             "run",
@@ -65,14 +64,17 @@ fn run_build_test(container_cmd: &str) {
             "aws-build",
             "--",
             "al2",
-            "--container-cmd",
-            container_cmd,
             "--bin",
             "aws-build",
         ],
-    )
-    .set_dir(&repo_dir)
-    .run()?;
+    );
+    cmd.set_dir(&repo_dir);
+
+    if let Some(container_cmd) = &args.container_cmd {
+        cmd.add_args(&["--container-cmd", container_cmd]);
+    }
+
+    cmd.run()?;
 
     println!("symlink: {}", symlink);
 
@@ -93,10 +95,6 @@ fn main() {
     let opt: Opt = argh::from_env();
 
     match opt.action {
-        Action::DockerTest(_) => run_build_test("docker")?,
-        // TODO: currently the CI only runs the docker test because
-        // podman is not yet supported on github runners. See
-        // https://github.com/actions/runner/issues/505.
-        Action::PodmanTest(_) => run_build_test("podman")?,
+        Action::Test(args) => run_build_test(args)?,
     }
 }
