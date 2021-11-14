@@ -53,6 +53,12 @@ struct Opt {
     #[argh(switch)]
     strip: bool,
 
+    /// relabel files before bind-mounting. warning: this overwrites the
+    /// current label on files on the host; doing this to a system
+    /// directory like /usr could break your system
+    #[argh(switch)]
+    relabel_shared: bool,
+
     /// name of the binary target to build (required if there is more
     /// than one binary target)
     #[argh(option)]
