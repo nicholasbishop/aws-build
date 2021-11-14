@@ -62,6 +62,11 @@ struct Opt {
     #[argh(option)]
     package: Vec<String>,
 
+    /// root directory to mount into the container, must contain the
+    /// project path (default: project path)
+    #[argh(option)]
+    code_root: Option<PathBuf>,
+
     /// whether to build for Amazon Linux 2 or AWS Lambda
     #[argh(positional)]
     mode: BuildMode,
@@ -97,9 +102,7 @@ fn main() {
         bin: opt.bin,
         strip: opt.strip,
         launcher,
-        // TODO: add an argument to control code root independently from
-        // project_path.
-        code_root: opt.project.clone(),
+        code_root: opt.code_root.unwrap_or_else(|| opt.project.clone()),
         project_path: opt.project,
         packages: opt.package,
         relabel: None,
