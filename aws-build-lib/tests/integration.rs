@@ -4,7 +4,7 @@ use aws_build_lib::{BuildMode, Builder, Relabel};
 use fehler::throws;
 use fs_err as fs;
 use std::ffi::OsStr;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 #[throws]
@@ -142,31 +142,78 @@ fn test_with_deps() {
     build_and_check(builder, project_name)?;
 }
 
+struct TwoProjects {
+    tmp_dir: TempDir,
+    proj1: &'static str,
+    proj2: &'static str,
+}
+
+impl TwoProjects {
+    fn proj1_path(&self) -> PathBuf {
+        self.root().join(self.proj1)
+    }
+
+    fn proj2_path(&self) -> PathBuf {
+        self.root().join(self.proj2)
+    }
+
+    #[throws]
+    fn new() -> TwoProjects {
+        let tmp_dir = TempDir::new()?;
+        let projects = TwoProjects {
+            tmp_dir,
+            proj1: "proj1",
+            proj2: "proj2",
+        };
+
+        fs::create_dir(projects.proj1_path())?;
+        fs::create_dir(projects.proj2_path())?;
+
+        make_mock_project(&projects.proj1_path(), projects.proj1, &[])?;
+
+        make_mock_project(
+            &projects.proj2_path(),
+            projects.proj2,
+            &[r#"proj1 = { path = "../proj1" }"#],
+        )?;
+
+        projects
+    }
+
+    fn root(&self) -> &Path {
+        self.tmp_dir.path()
+    }
+}
+
 /// Test that building a project in a subdirectory of the code root
 /// works.
 #[test]
 #[throws]
 fn test_code_root() {
-    let root = TempDir::new()?;
-    let root = root.path();
-    let proj1 = "proj1";
-    fs::create_dir(root.join(proj1))?;
-    make_mock_project(&root.join(proj1), proj1, &[])?;
-
-    let proj2 = "proj2";
-    fs::create_dir(root.join(proj2))?;
-    make_mock_project(
-        &root.join(proj2),
-        proj2,
-        &[r#"proj1 = { path = "../proj1" }"#],
-    )?;
+    let projects = TwoProjects::new()?;
 
     let builder = Builder {
         mode: BuildMode::AmazonLinux2,
-        code_root: root.into(),
-        project_path: root.join(proj2),
+        code_root: projects.root().into(),
+        project_path: projects.proj2_path(),
         relabel: Some(Relabel::Unshared),
         ..Default::default()
     };
-    build_and_check(builder, proj2)?;
+    build_and_check(builder, projects.proj2)?;
+}
+
+/// Test that a project path outside the code root fails.
+#[test]
+#[throws]
+fn test_bad_project_path() {
+    let projects = TwoProjects::new()?;
+
+    let builder = Builder {
+        mode: BuildMode::AmazonLinux2,
+        code_root: projects.proj1_path().into(),
+        project_path: projects.proj2_path(),
+        relabel: Some(Relabel::Unshared),
+        ..Default::default()
+    };
+    assert!(build_and_check(builder, projects.proj2).is_err());
 }
