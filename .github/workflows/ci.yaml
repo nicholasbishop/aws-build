@@ -85,6 +85,9 @@ jobs:
         with:
           command: doc
 
+  # TODO: currently the CI only runs the docker test because
+  # podman is not yet supported on github runners. See
+  # https://github.com/actions/runner/issues/505.
   xtask-docker-test:
     runs-on: ubuntu-latest
     steps:
@@ -97,4 +100,4 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: xtask
-          args: docker-test
+          args: test --container-cmd docker
