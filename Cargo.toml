@@ -4,3 +4,4 @@ members = [
     "aws-build",
     "xtask",
 ]
+exclude = ["container_tests"]
