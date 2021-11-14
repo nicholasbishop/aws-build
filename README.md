@@ -47,6 +47,8 @@ Options:
   --bin             name of the binary target to build (required if there is
                     more than one binary target)
   --package         yum devel package to install in build container
+  --code-root       root directory to mount into the container, must contain the
+                    project path (default: project path)
   --help            display usage information
 ```
 
