@@ -100,4 +100,4 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: xtask
-          args: test --container-cmd docker
+          args: run-container-tests --container-cmd docker
