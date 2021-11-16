@@ -490,6 +490,7 @@ impl Builder {
         // error in case it doesn't exist.
         let _ = fs::remove_file(&symlink_path);
         std::os::unix::fs::symlink(&out_path, &symlink_path)?;
+        info!("symlink: {}", symlink_path.display());
 
         BuilderOutput {
             real: out_path,
