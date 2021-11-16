@@ -206,7 +206,7 @@ impl<'a> Container<'a> {
             env: vec![
                 (
                     "TARGET_DIR".into(),
-                    Path::new("/code/target").join(mode_name).into(),
+                    Path::new("/target").join(mode_name).into(),
                 ),
                 ("BIN_TARGET".into(), self.bin.into()),
             ],
@@ -236,7 +236,7 @@ impl<'a> Container<'a> {
                 // Mount the output target directory
                 Volume {
                     src: self.output_dir.into(),
-                    dst: Path::new("/code/target").into(),
+                    dst: Path::new("/target").into(),
                     read_write: true,
                     options: mount_options,
                 },
