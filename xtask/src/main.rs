@@ -8,6 +8,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 use command_run::Command;
 use fehler::throws;
 use fs_err as fs;
+use rayon::prelude::*;
 use std::env;
 use std::ffi::OsStr;
 
@@ -327,17 +328,20 @@ fn run_build_test(args: RunContainerTests) {
     } else {
         let exe = env::current_exe()?;
 
-        for (_func, test_name) in test_funcs {
-            let mut cmd = Command::with_args(
-                exe.clone(),
-                &["run-container-tests", "--name", test_name],
-            );
-            if let Some(container_cmd) = &args.container_cmd {
-                cmd.add_args(&["--container-cmd", container_cmd]);
-            }
+        test_funcs.par_iter().try_for_each(
+            |(_func, test_name)| -> Result<(), Error> {
+                let mut cmd = Command::with_args(
+                    exe.clone(),
+                    &["run-container-tests", "--name", test_name],
+                );
+                if let Some(container_cmd) = &args.container_cmd {
+                    cmd.add_args(&["--container-cmd", container_cmd]);
+                }
 
-            cmd.run()?;
-        }
+                cmd.run()?;
+                Ok(())
+            },
+        )?;
     }
 
     println!("success");
