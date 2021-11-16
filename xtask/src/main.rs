@@ -16,13 +16,13 @@ struct Opt {
 #[derive(Debug, FromArgs)]
 #[argh(subcommand)]
 enum Action {
-    Test(Test),
+    RunContainerTests(RunContainerTests),
 }
 
 /// Run "live" tests using docker or podman.
 #[derive(Debug, FromArgs)]
-#[argh(subcommand, name = "test")]
-struct Test {
+#[argh(subcommand, name = "run-container-tests")]
+struct RunContainerTests {
     /// base container command, e.g. docker or podman, auto-detected by
     /// default
     #[argh(option)]
@@ -45,7 +45,7 @@ fn get_repo_path() -> Utf8PathBuf {
 }
 
 #[throws]
-fn run_build_test(args: Test) {
+fn run_build_test(args: RunContainerTests) {
     let repo_dir = get_repo_path()?;
     let target_dir = repo_dir.join("target");
     let symlink = target_dir.join("latest-al2");
@@ -95,6 +95,6 @@ fn main() {
     let opt: Opt = argh::from_env();
 
     match opt.action {
-        Action::Test(args) => run_build_test(args)?,
+        Action::RunContainerTests(args) => run_build_test(args)?,
     }
 }
