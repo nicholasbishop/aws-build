@@ -8,9 +8,7 @@ pub use docker_command;
 use anyhow::{anyhow, Context, Error};
 use cargo_metadata::MetadataCommand;
 use docker_command::command_run::{Command, LogTo};
-use docker_command::{
-    BaseCommand, BuildOpt, Launcher, RunOpt, UserAndGroup, Volume,
-};
+use docker_command::{BuildOpt, Launcher, RunOpt, UserAndGroup, Volume};
 use fehler::{throw, throws};
 use fs_err as fs;
 use log::{error, info};
@@ -358,22 +356,6 @@ pub struct Builder {
     ///
     /// [break your system]: https://docs.docker.com/storage/bind-mounts/#configure-the-selinux-label
     pub relabel: Option<Relabel>,
-}
-
-impl Default for Builder {
-    fn default() -> Self {
-        Builder {
-            rust_version: DEFAULT_RUST_VERSION.into(),
-            mode: BuildMode::AmazonLinux2,
-            bin: None,
-            strip: false,
-            launcher: BaseCommand::Podman.into(),
-            code_root: Default::default(),
-            project_path: Default::default(),
-            packages: vec![],
-            relabel: None,
-        }
-    }
 }
 
 impl Builder {
