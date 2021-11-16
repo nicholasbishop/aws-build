@@ -28,6 +28,10 @@ enum Action {
 #[derive(Debug, FromArgs)]
 #[argh(subcommand, name = "run-container-tests")]
 struct RunContainerTests {
+    /// delete the cache directory before running the tests
+    #[argh(switch)]
+    clean: bool,
+
     /// base container command, e.g. docker or podman, auto-detected by
     /// default
     #[argh(option)]
@@ -299,6 +303,10 @@ fn run_build_test(args: RunContainerTests) {
         repo_dir: &repo_dir,
         base_test_dir: &repo_dir.join("container_tests"),
     };
+    if args.clean {
+        println!("cleaning {}", shared_input.base_test_dir);
+        fs::remove_dir_all(shared_input.base_test_dir)?;
+    }
     fs::create_dir_all(shared_input.base_test_dir)?;
     let test_funcs = &[
         test_al2 as TestFn,
