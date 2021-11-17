@@ -494,6 +494,7 @@ impl Builder {
             }
         };
         let tmp_dir = write_container_files()?;
+        let iid_path = tmp_dir.path().join("iidfile");
         let mut cmd = self.launcher.build(BuildOpt {
             build_args: vec![
                 ("FROM_IMAGE".into(), from.into()),
@@ -508,11 +509,9 @@ impl Builder {
                 ),
             ],
             context: tmp_dir.path().into(),
+            iidfile: Some(iid_path.clone()),
             ..Default::default()
         });
-        let iid_path = tmp_dir.path().join("iidfile");
-        cmd.add_arg("--iidfile");
-        cmd.add_arg(&iid_path);
         set_up_command(&mut cmd);
         cmd.run()?;
         fs::read_to_string(&iid_path)?

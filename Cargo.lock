@@ -217,9 +217,9 @@ dependencies = [
 
 [[package]]
 name = "docker-command"
-version = "2.0.0"
+version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2d68a03a35301cce6091d8dda780780a9c4d3d4ec4f50b62d9ab7c3203cf5e7"
+checksum = "d97e4b9a82fb225e8a4fcc3039dbfd211a0e628a257c969645d39092a9136629"
 dependencies = [
  "command-run",
  "users",
@@ -599,9 +599,9 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.3.4"
+version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99beeb0daeac2bd1e86ac2c21caddecb244b39a093594da1a661ec2060c7aedd"
+checksum = "41effe7cfa8af36f439fac33861b66b049edc6f9a32331e2312660529c1c24ad"
 dependencies = [
  "libc",
 ]
