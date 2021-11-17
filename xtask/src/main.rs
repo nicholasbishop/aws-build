@@ -296,7 +296,7 @@ type TestFn = fn(&TestInput) -> Result<(), Error>;
 #[throws]
 fn run_build_test(args: RunContainerTests) {
     let mut test_input = TestInput {
-        container_cmd: args.container_cmd,
+        container_cmd: args.container_cmd.clone(),
         repo_dir: get_repo_path()?,
         test_dir: Default::default(),
     };
@@ -325,9 +325,18 @@ fn run_build_test(args: RunContainerTests) {
         test_input.test_dir = base_test_dir.join(test_name);
         func(&test_input)?;
     } else {
-        for (func, test_name) in test_funcs {
-            test_input.test_dir = base_test_dir.join(test_name);
-            func(&test_input)?;
+        let exe = env::current_exe()?;
+
+        for (_func, test_name) in test_funcs {
+            let mut cmd = Command::with_args(
+                exe.clone(),
+                &["run-container-tests", "--name", test_name],
+            );
+            if let Some(container_cmd) = &args.container_cmd {
+                cmd.add_args(&["--container-cmd", container_cmd]);
+            }
+
+            cmd.run()?;
         }
     }
 
