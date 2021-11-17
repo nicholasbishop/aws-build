@@ -328,8 +328,9 @@ fn run_build_test(args: RunContainerTests) {
     } else {
         let exe = env::current_exe()?;
 
-        test_funcs.par_iter().try_for_each(
-            |(_func, test_name)| -> Result<(), Error> {
+        let failures: Vec<_> = test_funcs
+            .par_iter()
+            .filter_map(|(_func, test_name)| {
                 let mut cmd = Command::with_args(
                     exe.clone(),
                     &["run-container-tests", "--name", test_name],
@@ -337,11 +338,26 @@ fn run_build_test(args: RunContainerTests) {
                 if let Some(container_cmd) = &args.container_cmd {
                     cmd.add_args(&["--container-cmd", container_cmd]);
                 }
+                cmd.combine_output = true;
+                cmd.capture = true;
+                cmd.check = false;
 
-                cmd.run()?;
-                Ok(())
-            },
-        )?;
+                let output = cmd.run().expect("failed to run command");
+                if output.status.success() {
+                    None
+                } else {
+                    Some((test_name, output.stdout_string_lossy().to_string()))
+                }
+            })
+            .collect();
+
+        for (test_name, output) in &failures {
+            println!("{} failed: {}\n-----\n", test_name, output);
+        }
+
+        if !failures.is_empty() {
+            panic!("{} test(s) failed", failures.len());
+        }
     }
 
     println!("success");
