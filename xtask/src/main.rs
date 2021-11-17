@@ -308,16 +308,16 @@ fn run_build_test(args: RunContainerTests) {
         fs::remove_dir_all(test_input.base_test_dir)?;
     }
     fs::create_dir_all(test_input.base_test_dir)?;
-    let tf = |f: TestFn| f;
+    let tf = |f: TestFn, s: &'static str| (f, s);
     let test_funcs = &[
-        tf(test_al2),
-        tf(test_lambda),
-        tf(test_deps),
-        tf(test_code_root),
-        tf(test_bad_project_path),
+        tf(test_al2, "test_al2"),
+        tf(test_lambda, "test_lambda"),
+        tf(test_deps, "test_deps"),
+        tf(test_code_root, "test_code_root"),
+        tf(test_bad_project_path, "test_bad_project_path"),
     ];
     // TODO: run in parallel? If not, just call them directly
-    for func in test_funcs {
+    for (func, _name) in test_funcs {
         func(&test_input)?;
     }
 
