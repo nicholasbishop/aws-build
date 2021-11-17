@@ -112,19 +112,19 @@ struct Checker<'a> {
 impl<'a> Checker<'a> {
     /// Build the project and return the output symlink path.
     #[throws]
-    fn build(&self, shared_input: &SharedInput) -> Utf8PathBuf {
+    fn build(&self, test_input: &TestInput) -> Utf8PathBuf {
         let mut cmd =
             Command::with_args("cargo", &["run", "--bin", "aws-build", "--"]);
         if let Some(code_root) = self.code_root {
             cmd.add_args(&["--code-root", code_root.as_str()]);
         }
         cmd.add_args(&[self.mode.as_str(), self.project_path.as_str()]);
-        cmd.set_dir(shared_input.repo_dir);
+        cmd.set_dir(test_input.repo_dir);
         cmd.enable_capture();
         cmd.combine_output();
         cmd.log_output_on_error = true;
 
-        if let Some(container_cmd) = &shared_input.container_cmd {
+        if let Some(container_cmd) = &test_input.container_cmd {
             cmd.add_args(&["--container-cmd", container_cmd]);
         }
 
@@ -138,8 +138,8 @@ impl<'a> Checker<'a> {
     }
 
     #[throws]
-    fn build_and_check(&self, shared_input: &SharedInput) {
-        let symlink_path = self.build(shared_input)?;
+    fn build_and_check(&self, test_input: &TestInput) {
+        let symlink_path = self.build(test_input)?;
         let real_output_path = fs::canonicalize(&symlink_path)?;
 
         let target_dir = self.project_path.join("target");
@@ -172,7 +172,7 @@ impl<'a> Checker<'a> {
     }
 }
 
-struct SharedInput<'a> {
+struct TestInput<'a> {
     container_cmd: Option<&'a str>,
     repo_dir: &'a Utf8Path,
     base_test_dir: &'a Utf8Path,
@@ -180,9 +180,9 @@ struct SharedInput<'a> {
 
 /// Simple Amazon Linux 2 test.
 #[throws]
-fn test_al2(shared_input: &SharedInput) {
+fn test_al2(test_input: &TestInput) {
     let project_name = "proj";
-    let project_path = shared_input.base_test_dir.join("test_al2");
+    let project_path = test_input.base_test_dir.join("test_al2");
     make_mock_project(&project_path, project_name, &[])?;
     Checker {
         mode: BuildMode::Al2,
@@ -190,14 +190,14 @@ fn test_al2(shared_input: &SharedInput) {
         project_path,
         code_root: None,
     }
-    .build_and_check(shared_input)?;
+    .build_and_check(test_input)?;
 }
 
 /// Simple Lambda test.
 #[throws]
-fn test_lambda(shared_input: &SharedInput) {
+fn test_lambda(test_input: &TestInput) {
     let project_name = "proj";
-    let project_path = shared_input.base_test_dir.join("test_lambda");
+    let project_path = test_input.base_test_dir.join("test_lambda");
     make_mock_project(&project_path, project_name, &[])?;
     Checker {
         mode: BuildMode::Lambda,
@@ -205,7 +205,7 @@ fn test_lambda(shared_input: &SharedInput) {
         project_path,
         code_root: None,
     }
-    .build_and_check(shared_input)?;
+    .build_and_check(test_input)?;
 }
 
 /// Test that downloading dependencies works.
@@ -213,9 +213,9 @@ fn test_lambda(shared_input: &SharedInput) {
 /// The dependency is arbitrary, just want to check that any dependency
 /// works from within the container.
 #[throws]
-fn test_deps(shared_input: &SharedInput) {
+fn test_deps(test_input: &TestInput) {
     let project_name = "proj";
-    let project_path = shared_input.base_test_dir.join("test_deps");
+    let project_path = test_input.base_test_dir.join("test_deps");
     let dep = r#"arrayvec = { version = "0.7.2", default-features = false }"#;
     make_mock_project(&project_path, project_name, &[dep])?;
     Checker {
@@ -224,7 +224,7 @@ fn test_deps(shared_input: &SharedInput) {
         project_name,
         code_root: None,
     }
-    .build_and_check(shared_input)?;
+    .build_and_check(test_input)?;
 }
 
 struct TwoProjects {
@@ -264,8 +264,8 @@ impl TwoProjects {
 /// Test that building a project in a subdirectory of the code root
 /// works.
 #[throws]
-fn test_code_root(shared_input: &SharedInput) {
-    let code_root = shared_input.base_test_dir.join("test_code_root");
+fn test_code_root(test_input: &TestInput) {
+    let code_root = test_input.base_test_dir.join("test_code_root");
     let projects = TwoProjects::new(&code_root)?;
 
     Checker {
@@ -274,13 +274,13 @@ fn test_code_root(shared_input: &SharedInput) {
         project_name: projects.proj2,
         project_path: projects.proj2_path,
     }
-    .build_and_check(shared_input)?;
+    .build_and_check(test_input)?;
 }
 
 /// Test that a project path outside the code root fails.
 #[throws]
-fn test_bad_project_path(shared_input: &SharedInput) {
-    let code_root = shared_input.base_test_dir.join("test_bad_project_path");
+fn test_bad_project_path(test_input: &TestInput) {
+    let code_root = test_input.base_test_dir.join("test_bad_project_path");
     let projects = TwoProjects::new(&code_root)?;
 
     let checker = Checker {
@@ -289,25 +289,25 @@ fn test_bad_project_path(shared_input: &SharedInput) {
         project_name: projects.proj2,
         project_path: projects.proj2_path,
     };
-    assert!(checker.build_and_check(shared_input).is_err());
+    assert!(checker.build_and_check(test_input).is_err());
 }
 
-type TestFn = fn(&SharedInput) -> Result<(), Error>;
+type TestFn = fn(&TestInput) -> Result<(), Error>;
 
 #[throws]
 fn run_build_test(args: RunContainerTests) {
     let repo_dir = get_repo_path()?;
 
-    let shared_input = SharedInput {
+    let test_input = TestInput {
         container_cmd: args.container_cmd.as_deref(),
         repo_dir: &repo_dir,
         base_test_dir: &repo_dir.join("container_tests"),
     };
     if args.clean {
-        println!("cleaning {}", shared_input.base_test_dir);
-        fs::remove_dir_all(shared_input.base_test_dir)?;
+        println!("cleaning {}", test_input.base_test_dir);
+        fs::remove_dir_all(test_input.base_test_dir)?;
     }
-    fs::create_dir_all(shared_input.base_test_dir)?;
+    fs::create_dir_all(test_input.base_test_dir)?;
     let tf = |f: TestFn| f;
     let test_funcs = &[
         tf(test_al2),
@@ -318,7 +318,7 @@ fn run_build_test(args: RunContainerTests) {
     ];
     // TODO: run in parallel? If not, just call them directly
     for func in test_funcs {
-        func(&shared_input)?;
+        func(&test_input)?;
     }
 
     println!("success");
