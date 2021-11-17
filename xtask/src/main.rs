@@ -295,6 +295,14 @@ fn test_bad_project_path(test_input: &TestInput) {
 
 type TestFn = fn(&TestInput) -> Result<(), Error>;
 
+const TEST_FUNCS: &[(TestFn, &str)] = &[
+    (test_al2, "test_al2"),
+    (test_lambda, "test_lambda"),
+    (test_deps, "test_deps"),
+    (test_code_root, "test_code_root"),
+    (test_bad_project_path, "test_bad_project_path"),
+];
+
 #[throws]
 fn run_build_test(args: RunContainerTests) {
     let mut test_input = TestInput {
@@ -310,17 +318,9 @@ fn run_build_test(args: RunContainerTests) {
     }
 
     fs::create_dir_all(&base_test_dir)?;
-    let tf = |f: TestFn, s: &'static str| (f, s);
-    let test_funcs = &[
-        tf(test_al2, "test_al2"),
-        tf(test_lambda, "test_lambda"),
-        tf(test_deps, "test_deps"),
-        tf(test_code_root, "test_code_root"),
-        tf(test_bad_project_path, "test_bad_project_path"),
-    ];
 
     if let Some(name) = args.name {
-        let (func, test_name) = test_funcs
+        let (func, test_name) = TEST_FUNCS
             .iter()
             .find(|(_, test_name)| *test_name == name)
             .ok_or_else(|| anyhow!("test '{}' not found", name))?;
@@ -329,7 +329,7 @@ fn run_build_test(args: RunContainerTests) {
     } else {
         let exe = env::current_exe()?;
 
-        let failures: Vec<_> = test_funcs
+        let failures: Vec<_> = TEST_FUNCS
             .par_iter()
             .filter_map(|(_func, test_name)| {
                 let mut cmd = Command::with_args(
