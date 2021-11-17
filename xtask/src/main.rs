@@ -4,13 +4,13 @@
 
 use anyhow::{anyhow, Error};
 use argh::FromArgs;
-use camino::{Utf8Path, Utf8PathBuf};
 use command_run::Command;
 use fehler::throws;
 use fs_err as fs;
 use rayon::prelude::*;
 use std::env;
 use std::ffi::OsStr;
+use std::path::{Path, PathBuf};
 
 /// Custom tasks.
 #[derive(Debug, FromArgs)]
@@ -46,20 +46,19 @@ struct RunContainerTests {
 /// Get the absolute path of the repo. Assumes that this executable is
 /// located at <repo>/target/<buildmode>/<exename>.
 #[throws]
-fn get_repo_path() -> Utf8PathBuf {
-    let exe = Utf8PathBuf::from_path_buf(env::current_exe()?)
-        .map_err(|_| anyhow!("exe path is not utf-8"))?;
+fn get_repo_path() -> PathBuf {
+    let exe = env::current_exe()?;
     exe.parent()
         .map(|path| path.parent())
         .flatten()
         .map(|path| path.parent())
         .flatten()
-        .ok_or_else(|| anyhow!("not enough parents: {}", exe))?
+        .ok_or_else(|| anyhow!("not enough parents: {}", exe.display()))?
         .into()
 }
 
 #[throws]
-fn make_mock_project(root: &Utf8Path, name: &str, deps: &[&str]) {
+fn make_mock_project(root: &Path, name: &str, deps: &[&str]) {
     fs::create_dir_all(root)?;
 
     let toml = format!(
@@ -110,20 +109,22 @@ impl BuildMode {
 struct Checker<'a> {
     mode: BuildMode,
     project_name: &'a str,
-    project_path: Utf8PathBuf,
-    code_root: Option<&'a Utf8Path>,
+    project_path: PathBuf,
+    code_root: Option<&'a Path>,
 }
 
 impl<'a> Checker<'a> {
     /// Build the project and return the output symlink path.
     #[throws]
-    fn build(&self, test_input: &TestInput) -> Utf8PathBuf {
+    fn build(&self, test_input: &TestInput) -> PathBuf {
         let mut cmd =
             Command::with_args("cargo", &["run", "--bin", "aws-build", "--"]);
         if let Some(code_root) = self.code_root {
-            cmd.add_args(&["--code-root", code_root.as_str()]);
+            cmd.add_arg("--code-root");
+            cmd.add_arg(code_root);
         }
-        cmd.add_args(&[self.mode.as_str(), self.project_path.as_str()]);
+        cmd.add_arg(self.mode.as_str());
+        cmd.add_arg(&self.project_path);
         cmd.set_dir(&test_input.repo_dir);
         cmd.enable_capture();
         cmd.combine_output();
@@ -139,7 +140,7 @@ impl<'a> Checker<'a> {
             .lines()
             .find_map(|line| line.strip_prefix("symlink: "))
             .ok_or_else(|| anyhow!("symlink not found in output"))?;
-        Utf8PathBuf::from(symlink_path)
+        PathBuf::from(symlink_path)
     }
 
     #[throws]
@@ -179,8 +180,8 @@ impl<'a> Checker<'a> {
 
 struct TestInput {
     container_cmd: Option<String>,
-    repo_dir: Utf8PathBuf,
-    test_dir: Utf8PathBuf,
+    repo_dir: PathBuf,
+    test_dir: PathBuf,
 }
 
 /// Simple Amazon Linux 2 test.
@@ -232,13 +233,13 @@ fn test_deps(test_input: &TestInput) {
 struct TwoProjects {
     proj1: &'static str,
     proj2: &'static str,
-    proj1_path: Utf8PathBuf,
-    proj2_path: Utf8PathBuf,
+    proj1_path: PathBuf,
+    proj2_path: PathBuf,
 }
 
 impl TwoProjects {
     #[throws]
-    fn new(test_dir: &Utf8Path) -> TwoProjects {
+    fn new(test_dir: &Path) -> TwoProjects {
         let proj1 = "proj1";
         let proj2 = "proj2";
         let projects = TwoProjects {
@@ -304,7 +305,7 @@ fn run_build_test(args: RunContainerTests) {
     let base_test_dir = test_input.repo_dir.join("container_tests");
 
     if args.clean {
-        println!("cleaning {}", base_test_dir);
+        println!("cleaning {}", base_test_dir.display());
         fs::remove_dir_all(&base_test_dir)?;
     }
 
