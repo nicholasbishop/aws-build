@@ -32,7 +32,7 @@ directory. There is also a `target/latest-al2` or
 `target/latest-lambda` symlink that points to the output file.
 
 ```
-aws-build <mode> [<project>] [--container-cmd <container-cmd>] [--rust-version <rust-version>] [--strip] [--relabel-shared] [--bin <bin>] [--package <package...>] [--code-root <code-root>]
+aws-build <mode> [<project>] [--container-cmd <container-cmd>] [--rust-version <rust-version>] [--strip] [--bin <bin>] [--package <package...>] [--code-root <code-root>]
 
 Build the project in a container for deployment to AWS.
 
@@ -44,9 +44,6 @@ Options:
                     by default
   --rust-version    rust version (default: latest stable)
   --strip           strip debug symbols
-  --relabel-shared  relabel files before bind-mounting. warning: this overwrites
-                    the current label on files on the host; doing this to a
-                    system directory like /usr could break your system
   --bin             name of the binary target to build (required if there is
                     more than one binary target)
   --package         yum devel package to install in build container
