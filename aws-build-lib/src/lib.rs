@@ -480,9 +480,9 @@ impl Builder {
         }
     }
 
+    /// Build the container image and return its hash.
     #[throws]
     fn build_container(&self, relative_project_path: &Path) -> String {
-        // Build the container
         let from = match self.mode {
             BuildMode::AmazonLinux2 => {
                 // https://hub.docker.com/_/amazonlinux
@@ -493,8 +493,6 @@ impl Builder {
                 "docker.io/lambci/lambda:build-provided.al2"
             }
         };
-        let image_tag =
-            format!("aws-build-{}-{}", self.mode.name(), self.rust_version);
         let tmp_dir = write_container_files()?;
         let mut cmd = self.launcher.build(BuildOpt {
             build_args: vec![
@@ -510,12 +508,14 @@ impl Builder {
                 ),
             ],
             context: tmp_dir.path().into(),
-            tag: Some(image_tag.clone()),
             ..Default::default()
         });
+        let iid_path = tmp_dir.path().join("iidfile");
+        cmd.add_arg("--iidfile");
+        cmd.add_arg(&iid_path);
         set_up_command(&mut cmd);
         cmd.run()?;
-        image_tag
+        fs::read_to_string(&iid_path)?
     }
 }
 
