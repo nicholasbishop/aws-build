@@ -119,7 +119,7 @@ impl<'a> Checker<'a> {
             cmd.add_args(&["--code-root", code_root.as_str()]);
         }
         cmd.add_args(&[self.mode.as_str(), self.project_path.as_str()]);
-        cmd.set_dir(test_input.repo_dir);
+        cmd.set_dir(&test_input.repo_dir);
         cmd.enable_capture();
         cmd.combine_output();
         cmd.log_output_on_error = true;
@@ -172,10 +172,9 @@ impl<'a> Checker<'a> {
     }
 }
 
-// TODO
-struct TestInput<'a> {
-    container_cmd: Option<&'a str>,
-    repo_dir: &'a Utf8Path,
+struct TestInput {
+    container_cmd: Option<String>,
+    repo_dir: Utf8PathBuf,
     test_dir: Utf8PathBuf,
 }
 
@@ -292,19 +291,18 @@ type TestFn = fn(&TestInput) -> Result<(), Error>;
 
 #[throws]
 fn run_build_test(args: RunContainerTests) {
-    let repo_dir = get_repo_path()?;
-    let base_test_dir = repo_dir.join("container_tests");
+    let mut test_input = TestInput {
+        container_cmd: args.container_cmd,
+        repo_dir: get_repo_path()?,
+        test_dir: Default::default(),
+    };
+    let base_test_dir = test_input.repo_dir.join("container_tests");
 
     if args.clean {
         println!("cleaning {}", base_test_dir);
         fs::remove_dir_all(&base_test_dir)?;
     }
 
-    let mut test_input = TestInput {
-        container_cmd: args.container_cmd.as_deref(),
-        repo_dir: &repo_dir,
-        test_dir: Default::default(),
-    };
     fs::create_dir_all(&base_test_dir)?;
     let tf = |f: TestFn, s: &'static str| (f, s);
     let test_funcs = &[
