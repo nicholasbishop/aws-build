@@ -36,6 +36,10 @@ struct RunContainerTests {
     /// default
     #[argh(option)]
     container_cmd: Option<String>,
+
+    /// run a single test with the given name
+    #[argh(option)]
+    name: Option<String>,
 }
 
 /// Get the absolute path of the repo. Assumes that this executable is
@@ -312,10 +316,19 @@ fn run_build_test(args: RunContainerTests) {
         tf(test_code_root, "test_code_root"),
         tf(test_bad_project_path, "test_bad_project_path"),
     ];
-    // TODO: run in parallel? If not, just call them directly
-    for (func, test_name) in test_funcs {
+
+    if let Some(name) = args.name {
+        let (func, test_name) = test_funcs
+            .iter()
+            .find(|(_, test_name)| *test_name == name)
+            .ok_or_else(|| anyhow!("test '{}' not found", name))?;
         test_input.test_dir = base_test_dir.join(test_name);
         func(&test_input)?;
+    } else {
+        for (func, test_name) in test_funcs {
+            test_input.test_dir = base_test_dir.join(test_name);
+            func(&test_input)?;
+        }
     }
 
     println!("success");
