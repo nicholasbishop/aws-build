@@ -304,8 +304,63 @@ const TEST_FUNCS: &[(TestFn, &str)] = &[
 ];
 
 #[throws]
-fn run_build_test(args: RunContainerTests) {
+fn run_one_test(args: &RunContainerTests, name: &str) {
     let mut test_input = TestInput {
+        container_cmd: args.container_cmd.clone(),
+        repo_dir: get_repo_path()?,
+        test_dir: Default::default(),
+    };
+    let base_test_dir = test_input.repo_dir.join("container_tests");
+
+    let (func, test_name) = TEST_FUNCS
+        .iter()
+        .find(|(_, test_name)| *test_name == name)
+        .ok_or_else(|| anyhow!("test '{}' not found", name))?;
+    test_input.test_dir = base_test_dir.join(test_name);
+    func(&test_input)?;
+
+    println!("success");
+}
+
+#[throws]
+fn run_all_tests(args: &RunContainerTests) {
+    let exe = env::current_exe()?;
+
+    let failures: Vec<_> = TEST_FUNCS
+        .par_iter()
+        .filter_map(|(_func, test_name)| {
+            let mut cmd = Command::with_args(
+                exe.clone(),
+                &["run-container-tests", "--name", test_name],
+            );
+            if let Some(container_cmd) = &args.container_cmd {
+                cmd.add_args(&["--container-cmd", container_cmd]);
+            }
+            cmd.combine_output = true;
+            cmd.capture = true;
+            cmd.check = false;
+
+            let output = cmd.run().expect("failed to run command");
+            if output.status.success() {
+                None
+            } else {
+                Some((test_name, output.stdout_string_lossy().to_string()))
+            }
+        })
+        .collect();
+
+    for (test_name, output) in &failures {
+        println!("{} failed: {}\n-----\n", test_name, output);
+    }
+
+    if !failures.is_empty() {
+        panic!("{} test(s) failed", failures.len());
+    }
+}
+
+#[throws]
+fn run_build_test(args: &RunContainerTests) {
+    let test_input = TestInput {
         container_cmd: args.container_cmd.clone(),
         repo_dir: get_repo_path()?,
         test_dir: Default::default(),
@@ -319,46 +374,10 @@ fn run_build_test(args: RunContainerTests) {
 
     fs::create_dir_all(&base_test_dir)?;
 
-    if let Some(name) = args.name {
-        let (func, test_name) = TEST_FUNCS
-            .iter()
-            .find(|(_, test_name)| *test_name == name)
-            .ok_or_else(|| anyhow!("test '{}' not found", name))?;
-        test_input.test_dir = base_test_dir.join(test_name);
-        func(&test_input)?;
+    if let Some(name) = &args.name {
+        run_one_test(args, name)?;
     } else {
-        let exe = env::current_exe()?;
-
-        let failures: Vec<_> = TEST_FUNCS
-            .par_iter()
-            .filter_map(|(_func, test_name)| {
-                let mut cmd = Command::with_args(
-                    exe.clone(),
-                    &["run-container-tests", "--name", test_name],
-                );
-                if let Some(container_cmd) = &args.container_cmd {
-                    cmd.add_args(&["--container-cmd", container_cmd]);
-                }
-                cmd.combine_output = true;
-                cmd.capture = true;
-                cmd.check = false;
-
-                let output = cmd.run().expect("failed to run command");
-                if output.status.success() {
-                    None
-                } else {
-                    Some((test_name, output.stdout_string_lossy().to_string()))
-                }
-            })
-            .collect();
-
-        for (test_name, output) in &failures {
-            println!("{} failed: {}\n-----\n", test_name, output);
-        }
-
-        if !failures.is_empty() {
-            panic!("{} test(s) failed", failures.len());
-        }
+        run_all_tests(args)?;
     }
 
     println!("success");
@@ -369,6 +388,6 @@ fn main() {
     let opt: Opt = argh::from_env();
 
     match opt.action {
-        Action::RunContainerTests(args) => run_build_test(args)?,
+        Action::RunContainerTests(args) => run_build_test(&args)?,
     }
 }
