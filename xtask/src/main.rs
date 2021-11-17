@@ -359,7 +359,7 @@ fn run_all_tests(args: &RunContainerTests) {
 }
 
 #[throws]
-fn run_build_test(args: &RunContainerTests) {
+fn run_container_tests(args: &RunContainerTests) {
     let test_input = TestInput {
         container_cmd: args.container_cmd.clone(),
         repo_dir: get_repo_path()?,
@@ -388,6 +388,6 @@ fn main() {
     let opt: Opt = argh::from_env();
 
     match opt.action {
-        Action::RunContainerTests(args) => run_build_test(&args)?,
+        Action::RunContainerTests(args) => run_container_tests(&args)?,
     }
 }
