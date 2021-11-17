@@ -175,19 +175,20 @@ impl<'a> Checker<'a> {
 struct TestInput<'a> {
     container_cmd: Option<&'a str>,
     repo_dir: &'a Utf8Path,
+    // TODO
     base_test_dir: &'a Utf8Path,
+    test_dir: Utf8PathBuf,
 }
 
 /// Simple Amazon Linux 2 test.
 #[throws]
 fn test_al2(test_input: &TestInput) {
     let project_name = "proj";
-    let project_path = test_input.base_test_dir.join("test_al2");
-    make_mock_project(&project_path, project_name, &[])?;
+    make_mock_project(&test_input.test_dir, project_name, &[])?;
     Checker {
         mode: BuildMode::Al2,
         project_name,
-        project_path,
+        project_path: test_input.test_dir.clone(),
         code_root: None,
     }
     .build_and_check(test_input)?;
@@ -197,12 +198,11 @@ fn test_al2(test_input: &TestInput) {
 #[throws]
 fn test_lambda(test_input: &TestInput) {
     let project_name = "proj";
-    let project_path = test_input.base_test_dir.join("test_lambda");
-    make_mock_project(&project_path, project_name, &[])?;
+    make_mock_project(&test_input.test_dir, project_name, &[])?;
     Checker {
         mode: BuildMode::Lambda,
         project_name,
-        project_path,
+        project_path: test_input.test_dir.clone(),
         code_root: None,
     }
     .build_and_check(test_input)?;
@@ -215,12 +215,11 @@ fn test_lambda(test_input: &TestInput) {
 #[throws]
 fn test_deps(test_input: &TestInput) {
     let project_name = "proj";
-    let project_path = test_input.base_test_dir.join("test_deps");
     let dep = r#"arrayvec = { version = "0.7.2", default-features = false }"#;
-    make_mock_project(&project_path, project_name, &[dep])?;
+    make_mock_project(&test_input.test_dir, project_name, &[dep])?;
     Checker {
         mode: BuildMode::Al2,
-        project_path,
+        project_path: test_input.test_dir.clone(),
         project_name,
         code_root: None,
     }
@@ -265,12 +264,11 @@ impl TwoProjects {
 /// works.
 #[throws]
 fn test_code_root(test_input: &TestInput) {
-    let code_root = test_input.base_test_dir.join("test_code_root");
-    let projects = TwoProjects::new(&code_root)?;
+    let projects = TwoProjects::new(&test_input.test_dir)?;
 
     Checker {
         mode: BuildMode::Al2,
-        code_root: Some(&code_root),
+        code_root: Some(&test_input.test_dir),
         project_name: projects.proj2,
         project_path: projects.proj2_path,
     }
@@ -280,8 +278,7 @@ fn test_code_root(test_input: &TestInput) {
 /// Test that a project path outside the code root fails.
 #[throws]
 fn test_bad_project_path(test_input: &TestInput) {
-    let code_root = test_input.base_test_dir.join("test_bad_project_path");
-    let projects = TwoProjects::new(&code_root)?;
+    let projects = TwoProjects::new(&test_input.test_dir)?;
 
     let checker = Checker {
         mode: BuildMode::Al2,
@@ -298,10 +295,11 @@ type TestFn = fn(&TestInput) -> Result<(), Error>;
 fn run_build_test(args: RunContainerTests) {
     let repo_dir = get_repo_path()?;
 
-    let test_input = TestInput {
+    let mut test_input = TestInput {
         container_cmd: args.container_cmd.as_deref(),
         repo_dir: &repo_dir,
         base_test_dir: &repo_dir.join("container_tests"),
+        test_dir: Default::default(),
     };
     if args.clean {
         println!("cleaning {}", test_input.base_test_dir);
@@ -317,7 +315,8 @@ fn run_build_test(args: RunContainerTests) {
         tf(test_bad_project_path, "test_bad_project_path"),
     ];
     // TODO: run in parallel? If not, just call them directly
-    for (func, _name) in test_funcs {
+    for (func, test_name) in test_funcs {
+        test_input.test_dir = test_input.base_test_dir.join(test_name);
         func(&test_input)?;
     }
 
