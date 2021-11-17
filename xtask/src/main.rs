@@ -172,11 +172,10 @@ impl<'a> Checker<'a> {
     }
 }
 
+// TODO
 struct TestInput<'a> {
     container_cmd: Option<&'a str>,
     repo_dir: &'a Utf8Path,
-    // TODO
-    base_test_dir: &'a Utf8Path,
     test_dir: Utf8PathBuf,
 }
 
@@ -294,18 +293,19 @@ type TestFn = fn(&TestInput) -> Result<(), Error>;
 #[throws]
 fn run_build_test(args: RunContainerTests) {
     let repo_dir = get_repo_path()?;
+    let base_test_dir = repo_dir.join("container_tests");
+
+    if args.clean {
+        println!("cleaning {}", base_test_dir);
+        fs::remove_dir_all(&base_test_dir)?;
+    }
 
     let mut test_input = TestInput {
         container_cmd: args.container_cmd.as_deref(),
         repo_dir: &repo_dir,
-        base_test_dir: &repo_dir.join("container_tests"),
         test_dir: Default::default(),
     };
-    if args.clean {
-        println!("cleaning {}", test_input.base_test_dir);
-        fs::remove_dir_all(test_input.base_test_dir)?;
-    }
-    fs::create_dir_all(test_input.base_test_dir)?;
+    fs::create_dir_all(&base_test_dir)?;
     let tf = |f: TestFn, s: &'static str| (f, s);
     let test_funcs = &[
         tf(test_al2, "test_al2"),
@@ -316,7 +316,7 @@ fn run_build_test(args: RunContainerTests) {
     ];
     // TODO: run in parallel? If not, just call them directly
     for (func, test_name) in test_funcs {
-        test_input.test_dir = test_input.base_test_dir.join(test_name);
+        test_input.test_dir = base_test_dir.join(test_name);
         func(&test_input)?;
     }
 
