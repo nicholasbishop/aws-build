@@ -11,7 +11,7 @@ readme = "../README.md"
 repository = "https://github.com/nicholasbishop/aws-build"
 
 [dependencies]
-aws-build-lib = { version = "0.9.3", default-features = false }
+aws-build-lib = { version = "^0.10.0", default-features = false }
 
 anyhow = { version = "1.0.45", default-features = false, features = ["std"] }
 argh = { version = "0.1.6", default-features = false }
