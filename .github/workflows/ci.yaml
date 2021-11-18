@@ -9,8 +9,11 @@ on:
 name: CI
 
 jobs:
-  check:
-    name: Check
+  # Build just the library to catch compilation issues involving
+  # disabled features in deps that would otherwise be hidden by feature
+  # resolution with the binary package.
+  build-lib:
+    name: Build Lib
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -21,7 +24,8 @@ jobs:
           override: true
       - uses: actions-rs/cargo@v1
         with:
-          command: check
+          command: build
+          args: -p aws-build-lib
 
   test:
     name: Test Suite
