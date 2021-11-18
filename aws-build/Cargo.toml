@@ -1,6 +1,6 @@
 [package]
 name = "aws-build"
-version = "0.9.3"
+version = "0.10.0"
 authors = ["Nicholas Bishop <nicholasbishop@gmail.com>"]
 edition = "2021"
 
