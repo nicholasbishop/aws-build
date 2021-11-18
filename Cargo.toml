@@ -5,3 +5,6 @@ members = [
     "xtask",
 ]
 exclude = ["container_tests"]
+
+[patch.crates-io]
+aws-build-lib = { path = "aws-build-lib" }
