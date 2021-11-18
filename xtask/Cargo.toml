@@ -11,3 +11,6 @@ command-run = { version = "1.1.1", default-features = false }
 fehler = { version = "1.0.0", default-features = false }
 fs-err = { version = "2.6.0", default-features = false }
 rayon = { version = "1.5.1", default-features = false } 
+
+[package.metadata.release]
+release = false
